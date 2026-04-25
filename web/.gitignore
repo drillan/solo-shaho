@@ -21,3 +21,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Re-include SvelteKit src/lib (root .gitignore has Python `lib/` rule)
+!src/lib/
+!src/lib/**
