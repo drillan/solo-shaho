@@ -239,3 +239,8 @@ Thumbs.db
 
 # Claude Code 関連の作業状態
 .claude/
+# hachimoku
+/.hachimoku/
+
+# git worktrees
+.worktrees/
