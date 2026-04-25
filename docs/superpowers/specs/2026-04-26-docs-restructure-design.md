@@ -26,9 +26,10 @@ docs/
 │   ├── index.md                       # 新規: アプリ概要 + Mermaid 構成図
 │   ├── quickstart.md                  # 新規
 │   ├── usage.md                       # 新規
-│   └── csv.md                         # 新規
+│   ├── csv.md                         # 新規
+│   └── architecture.md                # 新規: モジュール構成 Mermaid + 責務表(2026-04-26 追加)
 ├── reference/                         # 第 2 部: 計算のしくみ・リファレンス
-│   ├── index.md                       # 新規: リファレンス入口 + Mermaid モジュール依存図
+│   ├── index.md                       # 新規: リファレンス入口(Web 実装非依存・概念目次のみ)
 │   ├── logic.md
 │   ├── rates.md
 │   ├── semantics.md
@@ -198,7 +199,12 @@ flowchart LR
     classDef edge stroke-dasharray: 5 5
 ```
 
-### 4.2 `docs/reference/index.md` — 計算エンジン モジュール依存
+### 4.2 `docs/web/architecture.md` — 計算エンジン モジュール依存
+
+```{note}
+2026-04-26 改訂: 本図は当初 `docs/reference/index.md` に置く設計だったが、レビューで「モジュール構成は Web 実装詳細であり、計算リファレンス(Excel/Web 共通)とは層が違う」との指摘により、Web 部 (`docs/web/architecture.md`) へ移設した。
+```
+
 
 ```mermaid
 flowchart TD
@@ -262,6 +268,10 @@ flowchart TD
 - `docs/reference/logic.md` — 既存の式を `{math}` ブロックまたは `$...$` インラインに変換
 
 他のファイル(`rates.md` / `semantics.md` 等)は数式がほぼ無いため対象外。
+
+```{note}
+2026-04-26 改訂: 計算リファレンス層は **Excel/Web 双方の実装に共通する規範のみ** を述べる方針に整理。`reference/logic.md` から Excel 関数(`INT`/`MOD`/`IF`/`EOMONTH`/`XLOOKUP`)とセル参照を全削除し、MyST math 式と概念表現に置き換えた。Excel 関数の集約ファイルは作らない(復活させない)。詳細は `docs/superpowers/plans/2026-04-26-reference-generalization.md` を参照。
+```
 
 ## 7. 既存文書の整合性更新
 

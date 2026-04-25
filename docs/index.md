@@ -14,6 +14,7 @@ web/index
 web/quickstart
 web/usage
 web/csv
+web/architecture
 ```
 
 ```{toctree}
@@ -70,5 +71,5 @@ uv run --group docs sphinx-build -b html docs docs/_build/html
 
 - ✅ 健保 / 介護(2号) / 厚年 / 子育て拠出金 / 子育て支援金
 - ✅ 標準報酬月額 1 等級分(対象社員 1 名)の月次計算
-- ❌ 賞与・雇用保険・労災保険(`limitations.md` 参照)
+- ❌ 賞与・雇用保険・労災保険([既知の制限](excel/limitations.md) 参照)
 - ❌ 複数社員対応(同上)
