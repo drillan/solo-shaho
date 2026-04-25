@@ -61,4 +61,10 @@ describe('validateAndConvert', () => {
 		const csv = VALID.replace('88000', '-1');
 		expect(() => validateAndConvert(parseCsv(csv))).toThrow(/non-negative/);
 	});
+
+	it('throws when monthly_notes contains duplicate month keys (silent overwrite 防止)', () => {
+		const csv = VALID.replace('2024-05,25202,メモ\n', '2024-05,25202,メモ\n2024-05,99999,別行\n');
+		expect(() => validateAndConvert(parseCsv(csv))).toThrow(ImportError);
+		expect(() => validateAndConvert(parseCsv(csv))).toThrow(/duplicates/);
+	});
 });

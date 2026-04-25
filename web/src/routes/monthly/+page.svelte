@@ -4,11 +4,11 @@
 	import { findApplicableRate } from '$lib/payroll/rates';
 	import { findApplicableRemuneration } from '$lib/payroll/remuneration';
 	import { calculateMonth } from '$lib/payroll/calculate';
-	import type { RateEntry } from '$lib/payroll/types';
+	import { validateRateHistory } from '$lib/payroll/types';
 	import ratesData from '$lib/data/rates.json';
 
 	const store = getAppStateStore();
-	const rateHistory = ratesData.history as RateEntry[];
+	const rateHistory = validateRateHistory(ratesData.history);
 
 	const today = new Date();
 	let selectedYear = $state(today.getFullYear());
@@ -216,9 +216,14 @@
 		{/if}
 		<label class="mt-3 block text-sm">
 			メモ
+			<!--
+				bind:value は派生 store のオブジェクトを直接 mutate してしまい、
+				blur まで store.update が走らずに silent data loss になるため使わない。
+				代わりに value + oninput の controlled component で 1 文字ごとに永続化する。
+			-->
 			<textarea
-				bind:value={note.memo}
-				onchange={(e) => saveMemo((e.target as HTMLTextAreaElement).value)}
+				value={note.memo ?? ''}
+				oninput={(e) => saveMemo((e.target as HTMLTextAreaElement).value)}
 				rows="2"
 				class="mt-1 w-full rounded border px-2 py-1"
 			></textarea>

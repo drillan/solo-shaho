@@ -4,11 +4,11 @@
 	import { calculateRange } from '$lib/payroll/calculate';
 	import { aggregateByCalendarYear } from '$lib/payroll/aggregate';
 	import { findApplicableRemuneration } from '$lib/payroll/remuneration';
-	import type { MonthResult, RateEntry, YearSummary } from '$lib/payroll/types';
+	import { validateRateHistory, type MonthResult, type YearSummary } from '$lib/payroll/types';
 	import ratesData from '$lib/data/rates.json';
 
 	const store = getAppStateStore();
-	const rateHistory = ratesData.history as RateEntry[];
+	const rateHistory = validateRateHistory(ratesData.history);
 
 	type Row =
 		| { kind: 'month'; result: MonthResult; std: number }

@@ -43,7 +43,10 @@ describe.skipIf(SKIP)('Excel snapshot regression', () => {
 			});
 			for (const k of Object.keys(c.expected) as SnapshotExpectedKey[]) {
 				const v = c.expected[k];
-				expect(v, `expected[${k}] should not be null in fixture`).toBeDefined();
+				// fixture 抽出側のミスで null が混入したら明示的に fail させる
+				// (toBeDefined だけだと null を pass してしまうため not.toBeNull も併用)
+				expect(v, `expected[${k}] should not be null in fixture`).not.toBeNull();
+				expect(v).toBeDefined();
 				expect(got[k]).toBe(v);
 			}
 		});

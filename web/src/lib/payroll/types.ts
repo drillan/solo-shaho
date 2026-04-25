@@ -126,8 +126,10 @@ export function validateAppState(input: unknown): AppState {
 	if (typeof p.name !== 'string') {
 		throw new AppStateValidationError('profile.name must be a string');
 	}
-	// birthDate は null または YYYY-MM-DD のみ許容。空文字 '' は null に正規化して
-	// 下流分岐(kaigo.ts 等)で 3 値ロジックを書かなくて済むようにする。
+	// birthDate は null または YYYY-MM-DD のみ許容。空文字 '' は null に正規化することで
+	// AppState 経由の下流関数が string | null の 2 値だけを扱えばよい状態を保つ。
+	// (kaigo.ts は AppState を経由しない直接呼び出しにも備えて null/'' 両方を弾く防御的
+	//  実装を残している。)
 	let birthDate: string | null;
 	if (p.birthDate === null || p.birthDate === '') {
 		birthDate = null;
