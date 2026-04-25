@@ -1,0 +1,18 @@
+[project]
+name = "solo-shaho"
+version = "0.1.0"
+description = "マイクロ法人・個人事業主向け 社会保険料の月次計算ブック (給与計算_v2.xlsx) のジェネレータと仕様書"
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1",
+]
+
+[dependency-groups]
+docs = [
+    "sphinx>=7",
+    "myst-parser>=2",
+    "furo>=2024",
+]
+
+[tool.uv]
+package = false
