@@ -70,19 +70,38 @@ describe('createAppStateStore', () => {
 	});
 
 	it('reports persistence error to persistenceErrorStore on setItem failure', () => {
-		const store = createAppStateStore();
-		const originalSetItem = Storage.prototype.setItem;
-		Storage.prototype.setItem = () => {
+		const setItemSpy = vi.fn(() => {
 			throw new DOMException('Quota exceeded', 'QuotaExceededError');
+		});
+		const mockStorage: Pick<Storage, 'getItem' | 'setItem'> = {
+			getItem: () => null,
+			setItem: setItemSpy
 		};
-		try {
-			store.update((s) => ({ ...s, profile: { ...s.profile, name: 'X' } }));
-			vi.advanceTimersByTime(400);
-			const err = get(persistenceErrorStore);
-			expect(err).not.toBeNull();
-			expect(err?.message).toMatch(/Quota/);
-		} finally {
-			Storage.prototype.setItem = originalSetItem;
-		}
+		const store = createAppStateStore(mockStorage);
+		store.update((s) => ({ ...s, profile: { ...s.profile, name: 'X' } }));
+		vi.advanceTimersByTime(400);
+		const err = get(persistenceErrorStore);
+		expect(err).not.toBeNull();
+		expect(err?.message).toMatch(/Quota/);
+	});
+
+	it('debounce coalesces multiple rapid updates into a single setItem', () => {
+		const setItemSpy = vi.fn();
+		const getItemSpy = vi.fn(() => null);
+		const mockStorage: Pick<Storage, 'getItem' | 'setItem'> = {
+			getItem: getItemSpy,
+			setItem: setItemSpy
+		};
+		const store = createAppStateStore(mockStorage);
+		// initial subscribe フラッシュ分を消費
+		vi.advanceTimersByTime(400);
+		setItemSpy.mockClear();
+
+		store.update((s) => ({ ...s, profile: { ...s.profile, name: 'a' } }));
+		store.update((s) => ({ ...s, profile: { ...s.profile, name: 'b' } }));
+		store.update((s) => ({ ...s, profile: { ...s.profile, name: 'c' } }));
+		expect(setItemSpy).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(400);
+		expect(setItemSpy).toHaveBeenCalledTimes(1);
 	});
 });

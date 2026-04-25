@@ -63,4 +63,8 @@ describe('unescapeCell — シングルクォート剥がし', () => {
 	it('シングルクォートで始まらない値はそのまま', () => {
 		expect(unescapeCell('山田')).toBe('山田');
 	});
+
+	it('does NOT strip leading apostrophe when next char is not a formula prefix', () => {
+		expect(unescapeCell("'foo")).toBe("'foo");
+	});
 });

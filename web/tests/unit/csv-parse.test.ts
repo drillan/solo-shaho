@@ -76,4 +76,15 @@ month,notifiedAmount,memo
 		const p = parseCsv(csv);
 		expect(p.sections.monthly_notes?.rows[0].memo).toBe('=cmd');
 	});
+
+	it('captures appVersion from header comment', () => {
+		// SAMPLE constant already contains "# solo-shaho v0 export ..."
+		expect(parsed.headerMeta.appVersion).toBe('v0');
+	});
+
+	it('handles CRLF line endings (Excel-exported CSV)', () => {
+		const crlf = SAMPLE.replace(/\n/g, '\r\n');
+		const p = parseCsv(crlf);
+		expect(p.sections.profile?.rows[0].name).toBe('山田太郎');
+	});
 });

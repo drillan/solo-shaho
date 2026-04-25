@@ -33,8 +33,12 @@ export function parseCsv(input: string): ParsedCsv {
 	let currentHeader: string[] | null = null;
 
 	for (const record of records) {
-		// 空行(全フィールドが空文字 1 個)はセクション境界
+		// 空行(全フィールドが空文字 1 個)はセクション境界。
+		// 次に必ず [section] ヘッダーが来ることを期待し、currentSection もリセットする
+		// (リセットしないと、空行の後に来た任意の行がそのセクションの新ヘッダーとして
+		//  既存ヘッダーを silent に上書きしてしまうため)。
 		if (record.length === 1 && record[0] === '') {
+			currentSection = null;
 			currentHeader = null;
 			continue;
 		}

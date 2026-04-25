@@ -227,3 +227,46 @@ function validateMonthlyNote(input: unknown, key: string): MonthlyNote {
 function isNonNegativeInt(v: unknown): v is number {
 	return typeof v === 'number' && Number.isInteger(v) && v >= 0;
 }
+
+/**
+ * unknown を RateEntry[] として厳密に検証する。
+ * rates.json をモジュール初期化時に検証するための入口関数(`as RateEntry[]` キャスト排除)。
+ * 不正値はすべて AppStateValidationError として throw(フォールバック禁止)。
+ */
+export function validateRateHistory(input: unknown): RateEntry[] {
+	if (!Array.isArray(input)) {
+		throw new AppStateValidationError('rateHistory must be an array');
+	}
+	return input.map((e, i) => validateRateEntry(e, i));
+}
+
+function validateRateEntry(input: unknown, index: number): RateEntry {
+	if (typeof input !== 'object' || input === null) {
+		throw new AppStateValidationError(`rateHistory[${index}] must be an object`);
+	}
+	const e = input as Record<string, unknown>;
+	if (typeof e.effectiveFrom !== 'string' || !DATE_RE.test(e.effectiveFrom)) {
+		throw new AppStateValidationError(
+			`rateHistory[${index}].effectiveFrom invalid: ${String(e.effectiveFrom)}`
+		);
+	}
+	for (const k of ['kenpoBase', 'kaigo', 'kosei', 'kosodate', 'shien'] as const) {
+		if (!isNonNegativeInt(e[k])) {
+			throw new AppStateValidationError(
+				`rateHistory[${index}].${k} must be non-negative integer, got: ${String(e[k])}`
+			);
+		}
+	}
+	if (typeof e.note !== 'string') {
+		throw new AppStateValidationError(`rateHistory[${index}].note must be a string`);
+	}
+	return {
+		effectiveFrom: e.effectiveFrom,
+		kenpoBase: e.kenpoBase as number,
+		kaigo: e.kaigo as number,
+		kosei: e.kosei as number,
+		kosodate: e.kosodate as number,
+		shien: e.shien as number,
+		note: e.note
+	};
+}

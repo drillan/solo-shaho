@@ -1,9 +1,14 @@
 import { derived, type Readable, type Writable } from 'svelte/store';
-import type { AppState, MonthResult, RateEntry } from '$lib/payroll/types';
+import {
+	validateRateHistory,
+	type AppState,
+	type MonthResult,
+	type RateEntry
+} from '$lib/payroll/types';
 import { calculateRange } from '$lib/payroll/calculate';
 import ratesData from '$lib/data/rates.json';
 
-const RATE_HISTORY = ratesData.history as RateEntry[];
+const RATE_HISTORY: RateEntry[] = validateRateHistory(ratesData.history);
 
 export function createResultsStore(
 	appState: Writable<AppState>,

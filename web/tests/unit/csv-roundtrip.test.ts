@@ -37,4 +37,18 @@ describe('CSV roundtrip', () => {
 		const csv = serializeAppState(original, { exportedAt: 'x' });
 		expect(csv).toContain(`"'=cmd|/c calc"`);
 	});
+
+	it('null birthDate roundtrips through CSV without changing to undefined or string', () => {
+		const withNullBirth: AppState = {
+			schemaVersion: 1,
+			profile: { name: 'no-birthdate', birthDate: null },
+			remunerationHistory: [
+				{ effectiveFrom: '2024-04-01', stdRemuneration: 88000, grossSalary: 83000, note: '' }
+			],
+			monthlyNotes: {}
+		};
+		const csv = serializeAppState(withNullBirth, { exportedAt: 'x' });
+		const restored = validateAndConvert(parseCsv(csv));
+		expect(restored.profile.birthDate).toBeNull();
+	});
 });

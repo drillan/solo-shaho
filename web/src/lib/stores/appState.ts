@@ -13,17 +13,25 @@ export class StorageCorruptError extends Error {
 	}
 }
 
-export function createAppStateStore(): Writable<AppState> {
-	const initial = loadFromStorage();
+/**
+ * AppState ストアを生成する。
+ * storage は依存注入で受け取り、テスト時はモックを差し替えられる。
+ * happy-dom 等の環境では Storage.prototype を差し替えても bound proxy
+ * が直接実装を呼び出してしまうため、Storage.prototype 経由ではなく
+ * 注入された storage オブジェクトのメソッドを直接呼ぶ。
+ */
+export function createAppStateStore(
+	storage: Pick<Storage, 'getItem' | 'setItem'> = localStorage
+): Writable<AppState> {
+	const initial = loadFromStorage(storage);
 	const store = writable<AppState>(initial);
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	store.subscribe((state) => {
-		if (timer !== null) clearTimeout(timer);
+		// clearTimeout は null/undefined を安全に受け付ける(HTML 仕様)
+		clearTimeout(timer ?? undefined);
 		timer = setTimeout(() => {
 			try {
-				// Storage.prototype.setItem 経由で呼ぶことで、テストで Storage.prototype.setItem を
-				// 差し替えた際にも確実にエラーパスを通せるようにする(happy-dom の Proxy bind 対策)。
-				Storage.prototype.setItem.call(localStorage, STORAGE_KEY, JSON.stringify(state));
+				storage.setItem(STORAGE_KEY, JSON.stringify(state));
 			} catch (e) {
 				// QuotaExceededError, SecurityError 等を専用 store に push して
 				// UI レイヤがバナー表示等で必ずユーザーに伝える(silent data loss を防ぐ)
@@ -36,8 +44,8 @@ export function createAppStateStore(): Writable<AppState> {
 	return store;
 }
 
-function loadFromStorage(): AppState {
-	const raw = localStorage.getItem(STORAGE_KEY);
+function loadFromStorage(storage: Pick<Storage, 'getItem' | 'setItem'>): AppState {
+	const raw = storage.getItem(STORAGE_KEY);
 	if (raw === null) return createDefaultAppState();
 	let parsed: unknown;
 	try {

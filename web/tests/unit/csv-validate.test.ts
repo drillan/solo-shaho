@@ -49,7 +49,7 @@ describe('validateAndConvert', () => {
 
 	it('throws on invalid date format', () => {
 		const csv = VALID.replace('2024-04-01', '2024/04/01');
-		expect(() => validateAndConvert(parseCsv(csv))).toThrow(/date/);
+		expect(() => validateAndConvert(parseCsv(csv))).toThrow(/YYYY-MM-DD/);
 	});
 
 	it('throws on invalid month key in monthly_notes', () => {
