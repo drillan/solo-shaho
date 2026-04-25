@@ -21,14 +21,6 @@ limitations
 reference
 ```
 
-```{toctree}
-:maxdepth: 1
-:caption: Web アプリ計画
-
-superpowers/specs/2026-04-25-payroll-web-app-design
-superpowers/plans/2026-04-25-payroll-web-app
-```
-
 ## 対象読者
 
 - マイクロ法人・1 人法人の経営者(自分で社会保険料計算を回したい)
