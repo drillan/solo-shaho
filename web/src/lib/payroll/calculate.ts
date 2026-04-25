@@ -1,6 +1,8 @@
-import type { MonthInput, MonthResult } from './types';
+import type { MonthInput, MonthResult, RateEntry, RemunerationEntry } from './types';
 import { isKaigoApplicable, calculateAge } from './kaigo';
 import { splitHalfEmployee, splitHalfEmployer, fullDownToYen } from './round';
+import { findApplicableRate } from './rates';
+import { findApplicableRemuneration } from './remuneration';
 
 /**
  * 1 ヶ月分の社会保険料を計算する。
@@ -63,4 +65,53 @@ export function calculateMonth(input: MonthInput): MonthResult {
 		payableTotal,
 		netSalary
 	};
+}
+
+/**
+ * 範囲計算。AppState には依存しない(層分離)。
+ * start/end は包含 ("YYYY-MM")。start > end なら空配列。
+ */
+export function calculateRange(
+	start: string,
+	end: string,
+	params: {
+		birthDate: string | null;
+		remunerationHistory: readonly RemunerationEntry[];
+		rateHistory: readonly RateEntry[];
+	}
+): MonthResult[] {
+	if (start > end) return [];
+	const results: MonthResult[] = [];
+	for (const ym of monthRange(start, end)) {
+		const [yStr, mStr] = ym.split('-');
+		const year = Number(yStr);
+		const month = Number(mStr);
+		const rates = findApplicableRate(ym, params.rateHistory);
+		const rem = findApplicableRemuneration(ym, params.remunerationHistory);
+		results.push(
+			calculateMonth({
+				year,
+				month,
+				stdRemuneration: rem.stdRemuneration,
+				grossSalary: rem.grossSalary,
+				birthDate: params.birthDate,
+				rates
+			})
+		);
+	}
+	return results;
+}
+
+/** "YYYY-MM" を start..end の範囲で yield する純粋関数。 */
+function* monthRange(start: string, end: string): Generator<string> {
+	let [y, m] = start.split('-').map(Number);
+	const [ey, em] = end.split('-').map(Number);
+	while (y < ey || (y === ey && m <= em)) {
+		yield `${y}-${String(m).padStart(2, '0')}`;
+		m++;
+		if (m === 13) {
+			m = 1;
+			y++;
+		}
+	}
 }

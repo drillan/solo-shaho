@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { calculateMonth } from '$lib/payroll/calculate';
-import type { MonthInput, RateEntry } from '$lib/payroll/types';
+import { calculateMonth, calculateRange } from '$lib/payroll/calculate';
+import type { MonthInput, RateEntry, RemunerationEntry } from '$lib/payroll/types';
+import ratesData from '$lib/data/rates.json';
 
 const rate2026Apr: RateEntry = {
 	effectiveFrom: '2026-04-01',
@@ -126,5 +127,41 @@ describe('calculateMonth — 2026/05 (支援金開始, kaigo 該当)', () => {
 		// shienTotal = ROUNDDOWN(88000 * 0.23%) = ROUNDDOWN(202.4) = 202
 		expect(r.shienTotal).toBe(202);
 		expect(r.shienEmployee + r.shienEmployer).toBe(r.shienTotal);
+	});
+});
+
+const allRates = ratesData.history as RateEntry[];
+
+describe('calculateRange', () => {
+	const remunerationHistory: RemunerationEntry[] = [
+		{ effectiveFrom: '2024-04-01', stdRemuneration: 88000, grossSalary: 83000, note: '定時決定' }
+	];
+
+	it('returns 3 results for "2026-03" .. "2026-05"', () => {
+		const results = calculateRange('2026-03', '2026-05', {
+			birthDate: '1985-06-15',
+			remunerationHistory,
+			rateHistory: allRates
+		});
+		expect(results).toHaveLength(3);
+	});
+
+	it('2026-04 行は shien=0、2026-05 行は shien>0', () => {
+		const results = calculateRange('2026-03', '2026-05', {
+			birthDate: '1985-06-15',
+			remunerationHistory,
+			rateHistory: allRates
+		});
+		expect(results[1].shienTotal).toBe(0); // 2026-04
+		expect(results[2].shienTotal).toBeGreaterThan(0); // 2026-05
+	});
+
+	it('start > end のとき空配列', () => {
+		const results = calculateRange('2026-05', '2026-03', {
+			birthDate: '1985-06-15',
+			remunerationHistory,
+			rateHistory: allRates
+		});
+		expect(results).toEqual([]);
 	});
 });
