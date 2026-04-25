@@ -1,6 +1,6 @@
 # Excel Fixture (gitignored)
 
-`給与計算_v2.xlsx` から計算結果を抽出して、TS 計算エンジンの回帰テストに
+`給与計算.xlsx` から計算結果を抽出して、TS 計算エンジンの回帰テストに
 使用する fixture を生成するためのツール。
 
 個人データを含むため `excel-snapshot.json` は gitignore 対象。

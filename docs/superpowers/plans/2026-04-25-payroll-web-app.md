@@ -34,7 +34,7 @@
 solo-shaho/
 ├── docs/                                # 既存(継続)
 ├── scripts/                             # 既存(凍結)
-├── 給与計算_v2.xlsx                       # 既存(凍結)
+├── 給与計算.xlsx                       # 既存(凍結)
 ├── pyproject.toml                       # 既存
 └── web/                                 # 新規プロジェクト ROOT
     ├── src/
@@ -266,7 +266,7 @@ export default {
 
 - [ ] **Step 4: `web/src/routes/+layout.svelte` を新規作成しグローバル CSS を取り込む**
 
-```svelte
+```html
 <script lang="ts">
   import '../app.css';
 </script>
@@ -299,7 +299,7 @@ git commit -m "feat(web): add Tailwind CSS"
 
 - [ ] **Step 1: `web/wrangler.jsonc` を新規作成**
 
-```jsonc
+```json
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "solo-shaho",
@@ -870,7 +870,7 @@ git commit -m "feat(payroll): add domain types and validateAppState"
 
 - [ ] **Step 1: `web/src/lib/data/rates.json` を新規作成**
 
-参照元: `scripts/build_payroll_v2.py` の `RATE_HISTORY`。1/100,000 単位整数に変換。
+参照元: `scripts/build_payroll.py` の `RATE_HISTORY`。1/100,000 単位整数に変換。
 
 ```json
 {
@@ -3133,7 +3133,7 @@ git commit -m "test(csv): add roundtrip integration test"
 
 - [ ] **Step 1: `web/src/routes/+layout.svelte` を更新**
 
-```svelte
+```text
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
@@ -3173,21 +3173,21 @@ git commit -m "test(csv): add roundtrip integration test"
 
 - [ ] **Step 2: `web/src/routes/monthly/+page.svelte` を作成(プレースホルダ)**
 
-```svelte
+```text
 <h2 class="text-2xl font-bold">月次計算</h2>
 <p class="mt-2 text-gray-600">準備中。</p>
 ```
 
 - [ ] **Step 3: `web/src/routes/history/+page.svelte` を作成(プレースホルダ)**
 
-```svelte
+```text
 <h2 class="text-2xl font-bold">履歴</h2>
 <p class="mt-2 text-gray-600">準備中。</p>
 ```
 
 - [ ] **Step 4: `web/src/routes/+page.svelte` を一旦プレースホルダに**
 
-```svelte
+```text
 <h2 class="text-2xl font-bold">設定</h2>
 <p class="mt-2 text-gray-600">準備中。</p>
 ```
@@ -3235,7 +3235,7 @@ export function formatRatePercent(rateX100k: number, fractionDigits = 2): string
 
 - [ ] **Step 3: `web/src/routes/+page.svelte` を実装**
 
-```svelte
+```text
 <script lang="ts">
   import { getAppStateStore } from '$lib/stores/appState';
   import { formatYen } from '$lib/format/numbers';
@@ -3386,7 +3386,7 @@ git commit -m "feat(ui): settings tab with profile and remuneration history"
 
 `web/src/routes/monthly/+page.svelte`:
 
-```svelte
+```text
 <script lang="ts">
   import { getAppStateStore } from '$lib/stores/appState';
   import { formatYen, formatRatePercent } from '$lib/format/numbers';
@@ -3550,7 +3550,7 @@ git commit -m "feat(ui): monthly tab with full calculation breakdown"
 
 `web/src/routes/history/+page.svelte`:
 
-```svelte
+```text
 <script lang="ts">
   import { getAppStateStore } from '$lib/stores/appState';
   import { formatYen } from '$lib/format/numbers';
@@ -3720,7 +3720,7 @@ git commit -m "feat(ui): history tab with monthly grid + annual aggregation rows
 
 `web/src/routes/+layout.svelte` を更新(全置換):
 
-```svelte
+```text
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
@@ -3889,7 +3889,7 @@ git commit -m "feat(ui): I/O menu with CSV export, import, and clear"
 ```markdown
 # Excel Fixture (gitignored)
 
-`給与計算_v2.xlsx` から計算結果を抽出して、TS 計算エンジンの回帰テストに
+`給与計算.xlsx` から計算結果を抽出して、TS 計算エンジンの回帰テストに
 使用する fixture を生成するためのツール。
 
 個人データを含むため `excel-snapshot.json` は gitignore 対象。
@@ -3912,7 +3912,7 @@ cd web && pnpm test tests/fixtures/excel-snapshot.test.ts
 `web/tests/fixtures/extract_from_excel.py`:
 
 ```python
-"""給与計算_v2.xlsx から計算結果を JSON fixture として抽出する.
+"""給与計算.xlsx から計算結果を JSON fixture として抽出する.
 
 個人データを含むため出力ファイルは gitignore 対象。
 """
@@ -3923,7 +3923,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 ROOT = Path(__file__).resolve().parents[3]
-EXCEL = ROOT / "給与計算_v2.xlsx"
+EXCEL = ROOT / "給与計算.xlsx"
 OUTPUT = Path(__file__).parent / "excel-snapshot.json"
 
 
@@ -4133,7 +4133,7 @@ pnpm dev    # http://localhost:5173/
 
 ### Excel との関係
 
-`給与計算_v2.xlsx` と `scripts/build_payroll_v2.py` は **凍結** されており、
+`給与計算.xlsx` と `scripts/build_payroll.py` は **凍結** されており、
 Web アプリ版とは独立に動作し続けます。Web アプリ版が日常運用の主役、
 Excel は税務調査・印刷用のバックアップとして残しています。
 

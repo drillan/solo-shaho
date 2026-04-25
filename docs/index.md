@@ -1,8 +1,8 @@
 # solo-shaho ドキュメント
 
-**マイクロ法人・個人事業主向け** 社会保険料の月次計算ブック `給与計算_v2.xlsx` の仕様書と運用ノートです。
+**マイクロ法人・個人事業主向け** 社会保険料の月次計算ブック `給与計算.xlsx` の仕様書と運用ノートです。
 社労士や SaaS に頼らずに月次の社会保険料計算を完結させるための、Excel + Python スクリプトでの自作運用を扱います。
-新ブックの設計に至る経緯、計算ロジックの根拠、料率制度の知識、過去の意思決定をまとめています。
+ブック構成、計算ロジック、料率制度の知識、運用手順をまとめています。
 
 ## 主な構成
 
@@ -17,9 +17,16 @@ rates
 semantics
 accounting
 operation
-decisions
 limitations
 reference
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: Web アプリ計画
+
+superpowers/specs/2026-04-25-payroll-web-app-design
+superpowers/plans/2026-04-25-payroll-web-app
 ```
 
 ## 対象読者
@@ -41,7 +48,7 @@ uv sync --group docs
 ```{code-block} bash
 :caption: Excel 再生成
 
-uv run scripts/build_payroll_v2.py
+uv run scripts/build_payroll.py
 ```
 
 ```{code-block} bash

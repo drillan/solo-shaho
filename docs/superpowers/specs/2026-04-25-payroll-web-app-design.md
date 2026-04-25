@@ -5,7 +5,7 @@
 - **ステータス**: ブレインストーミング完了・hachimoku レビュー反映済み・設計承認待ち
 - **配信先**: Cloudflare Workers Static Assets(無料枠)
 
-### 改訂履歴
+## 改訂履歴
 
 | 日付 | 改訂内容 |
 |---|---|
@@ -16,7 +16,7 @@
 
 ## 0. 背景と目的
 
-`給与計算_v2.xlsx` で運用している月次社会保険料計算を、ブラウザで動作する Web アプリに移植する。Excel は単独で動作する遺物として凍結し、Web アプリが日常運用の主要ツールとなる。
+`給与計算.xlsx` で運用している月次社会保険料計算を、ブラウザで動作する Web アプリに移植する。Excel は単独で動作する遺物として凍結し、Web アプリが日常運用の主要ツールとなる。
 
 ### スコープ(Phase 1)
 
@@ -62,7 +62,7 @@
 
 **`web/wrangler.jsonc`**:
 
-```jsonc
+```json
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "solo-shaho",
@@ -156,7 +156,7 @@ solo-shaho/
 │   └── superpowers/specs/
 │       └── 2026-04-25-payroll-web-app-design.md  ← 本ドキュメント
 ├── scripts/                    # 既存 (凍結)
-├── 給与計算_v2.xlsx              # 既存 (凍結)
+├── 給与計算.xlsx              # 既存 (凍結)
 ├── pyproject.toml              # 既存
 ├── web/                        # 新規 — SvelteKit + Workers Assets
 │   ├── src/
@@ -545,7 +545,7 @@ csv/    ──┤
 
 ### エクスポート形式(BOM 付き UTF-8)
 
-```csv
+```text
 # solo-shaho v0.2.0 export 2026-04-25T14:30:00+09:00
 # schemaVersion=1
 
@@ -603,7 +603,7 @@ year,month,stdRemuneration,kenpoEmployee,koseiEmployee,shienEmployee,employeeDed
 
 CSV スキーマは追記方式で破壊的変更なしに拡張可能:
 
-```csv
+```text
 [monthly_notes]
 notifiedAmount,memo,incomeTax,withholdingBasis,dependents
 ```
@@ -654,7 +654,7 @@ notifiedAmount,memo,incomeTax,withholdingBasis,dependents
 ```python
 # uv run python web/tests/fixtures/extract_from_excel.py
 from openpyxl import load_workbook
-wb = load_workbook("給与計算_v2.xlsx", data_only=True)
+wb = load_workbook("給与計算.xlsx", data_only=True)
 # 月次計算シートの全行を走査、入力値と期待値を JSON 配列で保存
 ```
 

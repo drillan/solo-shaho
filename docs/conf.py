@@ -16,6 +16,8 @@ myst_enable_extensions = [
     "attrs_inline",
 ]
 
+myst_heading_anchors = 3
+
 source_suffix = {".md": "markdown"}
 
 language = "ja"

@@ -1,6 +1,6 @@
 # 運用ガイド
 
-`給与計算_v2.xlsx` を保守・更新するための手順集です。
+`給与計算.xlsx` を保守・更新するための手順集です。
 
 ## 環境セットアップ(初回のみ)
 
@@ -13,14 +13,14 @@ uv sync --group docs
 
 ## ブックの再生成
 
-`scripts/build_payroll_v2.py` は **冪等な生成スクリプト** で、既存の `給与計算_v2.xlsx` を上書きします(過去データは設定とコードに含まれているため、何度実行しても同じ結果)。
+`scripts/build_payroll.py` は **冪等な生成スクリプト** で、既存の `給与計算.xlsx` を上書きします(過去データは設定とコードに含まれているため、何度実行しても同じ結果)。
 
 ```{code-block} bash
-uv run scripts/build_payroll_v2.py
+uv run scripts/build_payroll.py
 ```
 
 ```{warning}
-**Excel で `給与計算_v2.xlsx` を開いている状態では再生成できません**(ファイルロック)。閉じてから実行してください。
+**Excel で `給与計算.xlsx` を開いている状態では再生成できません**(ファイルロック)。閉じてから実行してください。
 ```
 
 (rate-update-procedure)=
@@ -31,14 +31,14 @@ uv run scripts/build_payroll_v2.py
 ### データの単一の真実(SoT)
 
 ```{important}
-料率の **唯一の正(Single Source of Truth)は `scripts/build_payroll_v2.py` の `RATE_HISTORY` 定数** です。`docs/rates.md` の表は、この定数を人間が読みやすく転記したものに過ぎません。
+料率の **唯一の正(Single Source of Truth)は `scripts/build_payroll.py` の `RATE_HISTORY` 定数** です。`docs/rates.md` の表は、この定数を人間が読みやすく転記したものに過ぎません。
 
 両者は手動で同期する必要があります。**コード側を変更したら必ず docs 側の表も同じ内容で更新してください**。検証スクリプト `scripts/verify_payroll.py` は `RATE_HISTORY` を直接 import するので、そちらは自動的に同期されます。
 ```
 
 ### 手順
 
-1. `scripts/build_payroll_v2.py` を開く
+1. `scripts/build_payroll.py` を開く
 2. `RATE_HISTORY` リストの末尾に 1 行追加
 
    ```{code-block} python
@@ -60,7 +60,7 @@ uv run scripts/build_payroll_v2.py
 4. 再生成
 
    ```{code-block} bash
-   uv run scripts/build_payroll_v2.py
+   uv run scripts/build_payroll.py
    ```
 
 5. **検証スクリプトを実行してリグレッションがないことを確認**
@@ -129,14 +129,6 @@ uv run scripts/verify_payroll.py
 2. **AC 列(通知額差分)** が `0` であることを確認
 3. ズレがあれば原因を調査(料率設定・標準報酬月額・端数処理特約など)
 
-## 既存ファイルとの関係
-
-```{important}
-`給与計算.xlsx`(旧ファイル)には**一切手を加えません**。新ブック `給与計算_v2.xlsx` は完全に独立したファイルで、過去データを引き継いだうえで構造を改善した代替版です。
-```
-
-旧ファイルを参照したい場合は読み取り専用で開いてください。
-
 ## ドキュメント更新
 
 このドキュメント(`docs/`)の HTML を再生成するには:
@@ -154,4 +146,4 @@ uv pip install sphinx-autobuild
 uv run --group docs sphinx-autobuild docs docs/_build/html
 ```
 
-`http://127.0.0.1:8000` でライブプレビューが見られます(本ブックでは `sphinx-autobuild` は依存に含めていないので、必要時に追加してください)。
+`http://127.0.0.1:8000` でライブプレビューが見られます(`sphinx-autobuild` は本リポジトリの依存に含めていないので、必要時に追加してください)。

@@ -1,4 +1,4 @@
-"""給与計算_v2.xlsx ジェネレータ (C方式: 生年月日から介護該当を自動判定).
+"""給与計算.xlsx ジェネレータ (C方式: 生年月日から介護該当を自動判定).
 
 3 シート構成:
   - 設定: 氏名・生年月日・標準報酬月額/給与額面の現行値(備忘)
@@ -16,7 +16,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "給与計算_v2.xlsx"
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "給与計算.xlsx"
 
 STD_REMUNERATION = 88000
 GROSS_SALARY = 83000

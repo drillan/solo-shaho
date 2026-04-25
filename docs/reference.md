@@ -59,12 +59,10 @@
 
 * - 資料
   - 内容
-* - `scripts/build_payroll_v2.py`
+* - `scripts/build_payroll.py`
   - ブック生成スクリプト本体。`RATE_HISTORY` 定数に料率履歴がコード化されている。
-* - `給与計算.xlsx`(旧)
-  - 1 円ズレが発見されたオリジナル。**読み取り専用** で参照可能。
-* - `給与計算_v2.xlsx`(新)
-  - 本ドキュメントが対象とする新ブック。
+* - `給与計算.xlsx`
+  - 本ドキュメントが対象とするブック。`scripts/build_payroll.py` で生成。
 ```
 
 ## 用語集
