@@ -9,7 +9,23 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		adapter: adapter()
+		adapter: adapter(),
+		// Content-Security-Policy: prerender 時に inline script の sha256 を自動計算し
+		// <meta http-equiv="Content-Security-Policy"> として HTML に埋め込む。
+		// _headers 側の CSP と衝突しないよう、CSP は SvelteKit が出力する meta tag に集約する。
+		// frame-ancestors は meta では無視されるため X-Frame-Options: DENY (_headers) で防御。
+		csp: {
+			mode: 'hash',
+			directives: {
+				'default-src': ['self'],
+				'script-src': ['self'],
+				'style-src': ['self', 'unsafe-inline'],
+				'img-src': ['self', 'data:'],
+				'connect-src': ['self'],
+				'base-uri': ['self'],
+				'form-action': ['none']
+			}
+		}
 	}
 };
 
