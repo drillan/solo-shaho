@@ -6,14 +6,15 @@
 
 ## 0. 背景と目的
 
-`docs/` は現在 11 ファイルがフラットに配置されており、Excel ブック仕様が中心の構成になっている。Web アプリの開発が始まり、`docs/superpowers/specs/` と `docs/superpowers/plans/` 配下に Web 関連ドキュメントが追加された結果、3 系統(Web アプリ / 計算リファレンス / Excel)の情報が物理境界なしに混在している。
+`docs/` は現在 11 ファイルがフラットに配置されており、Excel ブック仕様が中心の構成になっている。Web アプリの開発が始まり、`docs/superpowers/specs/` と `docs/superpowers/plans/` 配下に開発資料(spec / 実装計画)が追加された結果、3 系統(Web アプリ / 計算リファレンス / Excel)の情報が物理境界なしに混在している。
 
 本タスクで:
 
 1. `docs/` を **Web アプリケーション / 社会保険料計算リファレンス / Excel 作成(オマケ)** の 3 部に物理ディレクトリで分割
-2. Sphinx テーマを `furo` から `shibuya` に置換
-3. 数式表現を MyST の `dollarmath` + `amsmath` で正式サポート
-4. Mermaid 図描画ライブラリ `sphinx-oceanid` を導入し、Web 部とリファレンス部に各 1 枚の構成図を追加
+2. `docs/superpowers/` は `/brainstorming` `/writing-plans` 等のスキル作業領域として温存し、Sphinx ビルドの入力からは除外する
+3. Sphinx テーマを `furo` から `shibuya` に置換
+4. 数式表現を MyST の `dollarmath` + `amsmath` で正式サポート
+5. Mermaid 図描画ライブラリ `sphinx-oceanid` を導入し、Web 部とリファレンス部に各 1 枚の構成図を追加
 
 ## 1. ディレクトリ構造
 
@@ -25,11 +26,7 @@ docs/
 │   ├── index.md                       # 新規: アプリ概要 + Mermaid 構成図
 │   ├── quickstart.md                  # 新規
 │   ├── usage.md                       # 新規
-│   ├── csv.md                         # 新規
-│   └── development/
-│       ├── specs/2026-04-25-payroll-web-app-design.md
-│       ├── specs/2026-04-26-docs-restructure-design.md  # 本ドキュメント
-│       └── plans/2026-04-25-payroll-web-app.md
+│   └── csv.md                         # 新規
 ├── reference/                         # 第 2 部: 計算のしくみ・リファレンス
 │   ├── index.md                       # 新規: リファレンス入口 + Mermaid モジュール依存図
 │   ├── logic.md
@@ -37,11 +34,14 @@ docs/
 │   ├── semantics.md
 │   ├── accounting.md
 │   └── sources.md                     # ← reference.md を改名
-└── excel/                             # 第 3 部: Excel 作成(オマケ)
-    ├── index.md                       # ← overview.md を改名・移動
-    ├── sheets.md
-    ├── operation.md
-    └── limitations.md
+├── excel/                             # 第 3 部: Excel 作成(オマケ)
+│   ├── index.md                       # ← overview.md を改名・移動
+│   ├── sheets.md
+│   ├── operation.md
+│   └── limitations.md
+└── superpowers/                       # スキル作業領域(ビルド対象外)
+    ├── specs/                         # /brainstorming で生成
+    └── plans/                         # /writing-plans で生成
 ```
 
 ### ファイル移動マッピング
@@ -57,10 +57,8 @@ docs/
 | `docs/semantics.md` | `docs/reference/semantics.md` | `git mv` |
 | `docs/accounting.md` | `docs/reference/accounting.md` | `git mv` |
 | `docs/reference.md` | `docs/reference/sources.md` | `git mv` + リネーム |
-| `docs/superpowers/specs/2026-04-25-payroll-web-app-design.md` | `docs/web/development/specs/...` | `git mv` |
-| `docs/superpowers/plans/2026-04-25-payroll-web-app.md` | `docs/web/development/plans/...` | `git mv` |
 
-`docs/superpowers/` 配下が空になったら削除する。
+`docs/superpowers/` 配下のファイルは現位置のまま温存し、`exclude_patterns` で Sphinx ビルドから除外する(セクション 2 参照)。
 
 ### `index.md` の toctree 構造
 
@@ -73,15 +71,6 @@ web/index
 web/quickstart
 web/usage
 web/csv
-```
-
-```{toctree}
-:maxdepth: 1
-:caption: Web アプリ — 開発資料
-
-web/development/specs/2026-04-25-payroll-web-app-design
-web/development/specs/2026-04-26-docs-restructure-design
-web/development/plans/2026-04-25-payroll-web-app
 ```
 
 ```{toctree}
@@ -138,7 +127,12 @@ myst_heading_anchors = 3
 source_suffix = {".md": "markdown"}
 
 language = "ja"
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "superpowers",  # /brainstorming /writing-plans の作業領域はビルド対象外
+]
 
 html_theme = "shibuya"
 html_static_path = ["_static"]
@@ -151,6 +145,7 @@ myst_url_schemes = ("http", "https", "mailto", "ftp")
 
 - `extensions` に `sphinx_oceanid` を追加
 - `myst_enable_extensions` に `dollarmath`, `amsmath` を追加
+- `exclude_patterns` に `superpowers` を追加(`/brainstorming` `/writing-plans` の作業領域は本番ドキュメントに含めない)
 - `html_theme`: `furo` → `shibuya`
 
 shibuya のサイドバー・ナビ等のオプションは初版ではデフォルトのまま。必要が出てから追加する。
@@ -303,12 +298,12 @@ flowchart TD
 
 - [ ] `docs/web/`, `docs/reference/`, `docs/excel/` の 3 ディレクトリが存在
 - [ ] 既存 9 ファイル(`overview` `sheets` `operation` `limitations` `logic` `rates` `semantics` `accounting` `reference`)が `git mv` で移動済み(履歴温存確認)
-- [ ] `docs/superpowers/` が削除済み
+- [ ] `docs/superpowers/` は現位置のまま温存され、`docs/conf.py` の `exclude_patterns` に追加されている
 - [ ] `docs/web/{index,quickstart,usage,csv}.md` が新規作成
 - [ ] `docs/reference/index.md` が新規作成(モジュール依存図入り)
 - [ ] `docs/web/index.md` に Mermaid 構成図が含まれる
 - [ ] `pyproject.toml` の `requires-python` が `>=3.13`、`docs` グループから `furo` 削除・`shibuya` `sphinx-oceanid` 追加
 - [ ] `docs/conf.py` のテーマが `shibuya`、extensions に `sphinx_oceanid`
-- [ ] `uv run --group docs sphinx-build -W --keep-going docs docs/_build/html` が warning ゼロで成功
+- [ ] `uv run --group docs sphinx-build -W --keep-going docs docs/_build/html` が warning ゼロで成功(`docs/superpowers/` 配下のファイルがビルド出力に含まれないことを確認)
 - [ ] 既存ドキュメント間の相互リンクが破綻していない
 - [ ] `README.md` の docs リンクが新パスに更新されている
