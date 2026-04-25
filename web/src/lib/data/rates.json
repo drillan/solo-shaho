@@ -1,0 +1,158 @@
+{
+	"schemaVersion": 1,
+	"history": [
+		{
+			"effectiveFrom": "2016-06-01",
+			"kenpoBase": 9960,
+			"kaigo": 1580,
+			"kosei": 17828,
+			"kosodate": 200,
+			"shien": 0,
+			"note": "2016年6月分(既存ファイル開始)"
+		},
+		{
+			"effectiveFrom": "2016-09-01",
+			"kenpoBase": 9960,
+			"kaigo": 1580,
+			"kosei": 18182,
+			"kosodate": 200,
+			"shien": 0,
+			"note": "2016年9月分・厚年改定"
+		},
+		{
+			"effectiveFrom": "2017-03-01",
+			"kenpoBase": 9910,
+			"kaigo": 1650,
+			"kosei": 18182,
+			"kosodate": 200,
+			"shien": 0,
+			"note": "2017年3月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2017-04-01",
+			"kenpoBase": 9910,
+			"kaigo": 1650,
+			"kosei": 18182,
+			"kosodate": 230,
+			"shien": 0,
+			"note": "2017年4月分・拠出金改定"
+		},
+		{
+			"effectiveFrom": "2017-09-01",
+			"kenpoBase": 9910,
+			"kaigo": 1650,
+			"kosei": 18300,
+			"kosodate": 230,
+			"shien": 0,
+			"note": "2017年9月分・厚年18.3%固定"
+		},
+		{
+			"effectiveFrom": "2018-03-01",
+			"kenpoBase": 9900,
+			"kaigo": 1570,
+			"kosei": 18300,
+			"kosodate": 230,
+			"shien": 0,
+			"note": "2018年3月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2019-03-01",
+			"kenpoBase": 9900,
+			"kaigo": 1730,
+			"kosei": 18300,
+			"kosodate": 230,
+			"shien": 0,
+			"note": "2019年3月分・介護改定"
+		},
+		{
+			"effectiveFrom": "2019-05-01",
+			"kenpoBase": 9900,
+			"kaigo": 1730,
+			"kosei": 18300,
+			"kosodate": 340,
+			"shien": 0,
+			"note": "2019年5月分・拠出金改定"
+		},
+		{
+			"effectiveFrom": "2020-03-01",
+			"kenpoBase": 9870,
+			"kaigo": 1790,
+			"kosei": 18300,
+			"kosodate": 340,
+			"shien": 0,
+			"note": "2020年3月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2020-04-01",
+			"kenpoBase": 9870,
+			"kaigo": 1790,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2020年4月分・拠出金改定"
+		},
+		{
+			"effectiveFrom": "2021-04-01",
+			"kenpoBase": 9840,
+			"kaigo": 1800,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2021年4月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2022-03-01",
+			"kenpoBase": 9810,
+			"kaigo": 1640,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2022年3月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2023-03-01",
+			"kenpoBase": 10000,
+			"kaigo": 1820,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2023年3月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2024-04-01",
+			"kenpoBase": 9980,
+			"kaigo": 1600,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2024年4月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2025-04-01",
+			"kenpoBase": 9910,
+			"kaigo": 1590,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2025年4月分・健保改定"
+		},
+		{
+			"effectiveFrom": "2026-04-01",
+			"kenpoBase": 9850,
+			"kaigo": 1620,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 0,
+			"note": "2026年4月納付分(3月分)・健保改定"
+		},
+		{
+			"effectiveFrom": "2026-05-01",
+			"kenpoBase": 9850,
+			"kaigo": 1620,
+			"kosei": 18300,
+			"kosodate": 360,
+			"shien": 230,
+			"note": "2026年5月納付分(4月分)・支援金開始"
+		}
+	]
+}
