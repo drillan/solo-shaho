@@ -8,17 +8,34 @@
 
 ```{toctree}
 :maxdepth: 2
-:caption: 目次
+:caption: Web アプリケーション
 
-overview
-sheets
-logic
-rates
-semantics
-accounting
-operation
-limitations
-reference
+web/index
+web/quickstart
+web/usage
+web/csv
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: 社会保険料計算 — リファレンス
+
+reference/index
+reference/logic
+reference/rates
+reference/semantics
+reference/accounting
+reference/sources
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Excel 作成(オマケ)
+
+excel/index
+excel/sheets
+excel/operation
+excel/limitations
 ```
 
 ## 対象読者
