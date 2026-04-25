@@ -222,8 +222,8 @@ web/src/lib/
 
 ### 設計仕様書 / 実装計画書
 
-- `docs/superpowers/specs/2026-04-25-payroll-web-app-design.md` — Phase 1 設計仕様
-- `docs/superpowers/plans/2026-04-25-payroll-web-app.md` — 34 タスク TDD 計画
+- `docs/superpowers/specs/2026-04-25-payroll-web-app-design.md` — Phase 1 設計仕様 (GitHub で閲覧。Sphinx ビルドには含めない)
+- `docs/superpowers/plans/2026-04-25-payroll-web-app.md` — 34 タスク TDD 計画 (GitHub で閲覧。Sphinx ビルドには含めない)
 
 ### テスト・型チェック・リント
 
