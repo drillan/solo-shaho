@@ -52,3 +52,31 @@ uv run --group docs sphinx-build -b html docs docs/_build/html  # ドキュメ�
 
 - Excel ファイル(`*.xlsx`)は **gitignore で除外** しています(個人の標準報酬月額・給与額面が含まれるため)。
 - リポジトリには **計算ロジックと仕様書のみ** が含まれ、個人データはコミットされません。
+
+## Web アプリ版 (Phase 1)
+
+`web/` ディレクトリに、ブラウザで動作する SvelteKit + Cloudflare Workers Static Assets 版を実装しています。
+
+- **配信**: Cloudflare Workers(無料枠で永久運用可)
+- **データ保管**: ブラウザの localStorage のみ。サーバには送信されません
+- **バックアップ**: 設定タブの ⚙ I/O メニューから CSV エクスポート/インポート
+
+### ローカル開発
+
+```sh
+cd web
+pnpm install
+pnpm dev    # http://localhost:5173/
+```
+
+### Excel との関係
+
+`給与計算_v2.xlsx` と `scripts/build_payroll_v2.py` は **凍結** されており、
+Web アプリ版とは独立に動作し続けます。Web アプリ版が日常運用の主役、
+Excel は税務調査・印刷用のバックアップとして残しています。
+
+### プライバシー
+
+- 氏名・生年月日・標準報酬月額・給与額面はあなたのブラウザの localStorage にのみ保存されます
+- 計算ロジックは静的アセットとして配信され、サーバへのリクエストは静的ファイル取得のみです
+- CSP・X-Frame-Options 等のセキュリティヘッダで XSS による漏洩リスクを軽減しています

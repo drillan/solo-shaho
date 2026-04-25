@@ -239,3 +239,15 @@ Thumbs.db
 
 # Claude Code 関連の作業状態
 .claude/
+# hachimoku
+/.hachimoku/
+
+# git worktrees
+.worktrees/
+
+# web app
+web/.svelte-kit/
+web/build/
+web/node_modules/
+web/.wrangler/
+web/tests/fixtures/excel-snapshot.json
