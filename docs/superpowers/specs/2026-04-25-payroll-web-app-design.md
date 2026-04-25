@@ -11,6 +11,7 @@
 |---|---|
 | 2026-04-25 | 初版作成(Cloudflare Workers Static Assets + SvelteKit) |
 | 2026-04-25 | hachimoku レビュー反映: 層分離(`calculateRange`)、DRY (`findApplicableEntry`)、`MonthlyNote.month` 削除、CSV Formula Injection 対策、CSP 等セキュリティヘッダ規定、`nodejs_compat` 削除、月次タブ/CSV 例の整合、`isKaigoApplicable` の月意味明記、`appliedKenpoRate` 算出規則明記、未知列ルール単純化 |
+| 2026-04-25 | 料率表現を 1/10000 → 1/100,000 整数に変更(歴史的料率 `kosei=0.17828` 等の 5 桁小数を整数化するため)。`appliedKenpoRate` 表示変換も同時更新 |
 
 ## 0. 背景と目的
 
@@ -53,7 +54,7 @@
 | パッケージマネージャ | pnpm |
 | CSS | Tailwind CSS |
 | テスト | Vitest + `@testing-library/svelte` + Playwright(E2E) |
-| 数値演算 | 整数演算(料率を 1/10000 単位の整数として保持) |
+| 数値演算 | 整数演算(料率を 1/100,000 単位の整数として保持。歴史的料率 `kosei=0.17828` 等の 5 桁小数も整数化可能) |
 | Wrangler | `>= 4.34.0` |
 
 ### 設定ファイル
@@ -345,7 +346,9 @@ interface MonthlyNote {
 // types.ts
 export interface RateEntry {
   effectiveFrom: string;
-  kenpoBase: number;        // 1/10000 単位整数 (例: 985 = 9.85%)
+  // すべて 1/100,000 単位の整数。
+  // 例: 9850 = 9.85% (kenpoBase 2026), 17828 = 17.828% (kosei 2016)
+  kenpoBase: number;
   kaigo: number;
   kosei: number;
   kosodate: number;
@@ -365,9 +368,9 @@ export interface MonthInput {
 export interface MonthResult {
   age: number | null;
   isKaigoApplicable: boolean;
-  // 適用済み健保料率(1/10000 単位整数)
+  // 適用済み健保料率(1/100,000 単位整数)
   // = kenpoBase + (isKaigoApplicable ? kaigo : 0)
-  // UI 層は (appliedKenpoRate / 100).toFixed(2) + '%' で表示する
+  // UI 層は (appliedKenpoRate / 1000).toFixed(2) + '%' で表示する
   appliedKenpoRate: number;
   // 全額(整数円)
   kenpoTotal: number;
@@ -463,22 +466,48 @@ aggregateByCalendarYear(results: readonly MonthResult[]): YearSummary[];
 
 ### 整数演算
 
-料率を「1/10000 単位の整数」として保持し、`stdRemuneration * rateX10000` で銭単位の整数を得る。`Math.floor` 等の整数操作で Excel の `ROUNDDOWN`/`MOD` を bit-perfect に再現する。
+料率を「1/100,000 単位の整数」として保持し、`stdRemuneration * rate / 1000` で銭単位の整数(`totalSen`)を得る。
 
-`rates.json`:
+**精度の保証:**
+
+- 標準報酬月額(健保等級表)はすべて 1,000 円の倍数 → `stdRem = 1000k`(`k` は整数)
+- 料率は 0..100000 の整数 → `rate ∈ ℤ`
+- `totalSen = stdRem * rate / 1000 = k * rate`(整数同士の積で必ず整数になる)
+- `Math.floor`、`%` 等の整数演算で Excel の `ROUNDDOWN`/`MOD` を bit-perfect に再現する
+- すべての中間値が `Number.MAX_SAFE_INTEGER`(2^53 ≈ 9×10^15)に収まる(最大ケース: stdRem 1,390,000 × rate 100,000 = 1.39×10^11、安全)
+
+`rates.json`(全 17 エントリのうち冒頭と末尾の例):
 
 ```json
 {
   "schemaVersion": 1,
   "history": [
     {
+      "effectiveFrom": "2016-06-01",
+      "kenpoBase": 9960,
+      "kaigo": 1580,
+      "kosei": 17828,
+      "kosodate": 200,
+      "shien": 0,
+      "note": "2016年6月分(既存ファイル開始)"
+    },
+    {
       "effectiveFrom": "2026-04-01",
-      "kenpoBase": 985,
-      "kaigo": 162,
-      "kosei": 1830,
-      "kosodate": 36,
+      "kenpoBase": 9850,
+      "kaigo": 1620,
+      "kosei": 18300,
+      "kosodate": 360,
       "shien": 0,
       "note": "2026年4月納付分(3月分)・健保改定"
+    },
+    {
+      "effectiveFrom": "2026-05-01",
+      "kenpoBase": 9850,
+      "kaigo": 1620,
+      "kosei": 18300,
+      "kosodate": 360,
+      "shien": 230,
+      "note": "2026年5月納付分(4月分)・支援金開始"
     }
   ]
 }
