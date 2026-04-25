@@ -164,6 +164,7 @@ docs = [
     "myst-parser>=5",
     "shibuya>=2026.1.9",
     "sphinx-oceanid>=0.1.2",
+    "sphinx-autobuild>=2024.10.3",
 ]
 ```
 
@@ -172,6 +173,7 @@ docs = [
 - `requires-python`: `>=3.10` → `>=3.13`(sphinx-oceanid 要件 + プロジェクト方針整合)
 - `furo>=2024` を削除
 - `shibuya>=2026.1.9`、`sphinx-oceanid>=0.1.2` を追加
+- `sphinx-autobuild` を追加(`make -C docs livehtml` 用)
 - `sphinx`、`myst-parser` は最新バージョンに合わせて下限引き上げ
 
 `uv.lock` 再生成は `uv lock --upgrade-package shibuya --upgrade-package sphinx-oceanid` ではなく `uv sync --group docs` 実行で再構成。
@@ -285,6 +287,38 @@ flowchart TD
    - 数式が MathJax(または KaTeX)でレンダリングされている
    - 4 つの toctree キャプションが正しく分かれて表示されている
 
+## 8.5. ローカルプレビュー (`make` ターゲット)
+
+`sphinx-oceanid` は ES module による Mermaid 描画のため、`file://` プロトコルでは図が描画されない([CORS 制約](https://github.com/drillan/sphinx-oceanid/blob/main/docs/install.md))。HTTP サーバ経由で閲覧する `make serve` と、ファイル変更を監視する `make livehtml` を `docs/Makefile` に追加する。
+
+```makefile
+# docs/Makefile (差分のみ)
+
+SPHINXBUILD   ?= uv run --group docs sphinx-build
+SPHINXAUTOBUILD ?= uv run --group docs sphinx-autobuild
+PORT          ?= 8000
+
+.PHONY: help clean html serve livehtml
+
+serve: html
+	@echo "Serving at http://localhost:$(PORT) — press Ctrl+C to stop"
+	uv run python -m http.server -d $(BUILDDIR)/html $(PORT)
+
+livehtml:
+	$(SPHINXAUTOBUILD) "$(SOURCEDIR)" "$(BUILDDIR)/html" $(SPHINXOPTS) $(O)
+```
+
+**設計判断:**
+
+- `SPHINXBUILD` を `uv run --group docs sphinx-build` に変更し、シェルで venv をアクティベートしなくても `make -C docs html` が動作するようにする(本プロジェクトは uv 管理のため)
+- `make serve`(依存最小)と `make livehtml`(自動再ビルド + ライブリロード)の 2 通りを提供
+- `PORT` 変数で `make serve PORT=9000` のようにポート指定可能
+
+**受け入れ基準:**
+
+- `make -C docs livehtml` が起動し、ブラウザで `http://127.0.0.1:8000` を開くと shibuya テーマの HTML が表示される
+- `.md` ファイルを編集すると数秒以内に自動再ビルド + ブラウザ自動リロードされる
+
 ## 9. スコープ外
 
 - 新規 4 ページの本文充実(本タスクではプレースホルダのみ)
@@ -305,5 +339,6 @@ flowchart TD
 - [ ] `pyproject.toml` の `requires-python` が `>=3.13`、`docs` グループから `furo` 削除・`shibuya` `sphinx-oceanid` 追加
 - [ ] `docs/conf.py` のテーマが `shibuya`、extensions に `sphinx_oceanid`
 - [ ] `uv run --group docs sphinx-build -W --keep-going docs docs/_build/html` が warning ゼロで成功(`docs/superpowers/` 配下のファイルがビルド出力に含まれないことを確認)
+- [ ] `make -C docs html` および `make -C docs livehtml` が動作する
 - [ ] 既存ドキュメント間の相互リンクが破綻していない
 - [ ] `README.md` の docs リンクが新パスに更新されている

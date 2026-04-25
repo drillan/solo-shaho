@@ -79,6 +79,7 @@ docs = [
     "myst-parser>=5",
     "shibuya>=2026.1.9",
     "sphinx-oceanid>=0.1.2",
+    "sphinx-autobuild>=2024.10.3",
 ]
 ```
 
@@ -183,6 +184,86 @@ uv run --group docs sphinx-build -W --keep-going docs docs/_build/html 2>&1 | ta
 ```bash
 git add uv.lock
 git commit -m "build: sync deps after switching to shibuya + sphinx-oceanid"
+```
+
+---
+
+### Task 3b: `docs/Makefile` に `serve` / `livehtml` ターゲットを追加
+
+**Files:**
+- Modify: `docs/Makefile`
+
+- [ ] **Step 1: 現状確認**
+
+```bash
+cat docs/Makefile
+```
+
+- [ ] **Step 2: Makefile を全置換**
+
+Write ツールで `docs/Makefile` を以下に上書き:
+
+```makefile
+# Minimal makefile for Sphinx documentation
+
+SPHINXOPTS      ?= -W --keep-going
+SPHINXBUILD     ?= uv run --group docs sphinx-build
+SPHINXAUTOBUILD ?= uv run --group docs sphinx-autobuild
+SOURCEDIR       = .
+BUILDDIR        = _build
+PORT            ?= 8000
+
+.PHONY: help clean html serve livehtml
+
+help:
+	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+clean:
+	rm -rf $(BUILDDIR)/*
+
+html:
+	$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+serve: html
+	@echo "Serving at http://localhost:$(PORT) — press Ctrl+C to stop"
+	uv run python -m http.server -d $(BUILDDIR)/html $(PORT)
+
+livehtml:
+	$(SPHINXAUTOBUILD) "$(SOURCEDIR)" "$(BUILDDIR)/html" $(SPHINXOPTS) $(O)
+
+%:
+	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+```
+
+**変更点:**
+- `SPHINXBUILD` を `uv run --group docs sphinx-build` に変更(uv プロジェクトでも `make` 単体で動作)
+- `SPHINXAUTOBUILD` を新規追加
+- `serve` ターゲット追加(HTTP サーバ経由で `_build/html/` を配信、Mermaid 描画に必須)
+- `livehtml` ターゲット追加(自動再ビルド + ライブリロード)
+- `PORT` 変数で `make serve PORT=9000` 可能
+
+- [ ] **Step 3: `make html` で動作確認**
+
+```bash
+make -C docs clean
+make -C docs html 2>&1 | tail -10
+```
+
+期待: `build succeeded` で完了(warning 0)。
+
+- [ ] **Step 4: `livehtml` の起動確認(短時間)**
+
+```bash
+timeout 8 make -C docs livehtml 2>&1 | head -20 || true
+```
+
+期待: `[sphinx-autobuild] Serving on http://127.0.0.1:8000` のような出力が出てから timeout で自然終了。エラーで即時終了しないこと。
+
+- [ ] **Step 5: コミット**
+
+```bash
+git add docs/Makefile
+git commit -m "build(docs): add serve and livehtml targets via uv"
 ```
 
 ---
@@ -839,6 +920,14 @@ grep '>=3.13' pyproject.toml && grep 'shibuya' pyproject.toml && grep 'sphinx-oc
 # conf.py 確認
 grep '"shibuya"' docs/conf.py && grep 'sphinx_oceanid' docs/conf.py && grep '"superpowers"' docs/conf.py \
    && echo "OK: conf.py"
+
+# Makefile 確認
+grep 'SPHINXAUTOBUILD' docs/Makefile && grep '^livehtml:' docs/Makefile && grep '^serve:' docs/Makefile \
+   && echo "OK: Makefile targets"
+
+# make html / livehtml の動作確認
+make -C docs clean && make -C docs html 2>&1 | tail -5 && echo "OK: make html"
+timeout 8 make -C docs livehtml 2>&1 | head -10 | grep -q "Serving on" && echo "OK: make livehtml" || echo "FAIL: livehtml did not start"
 ```
 
 すべての行で OK が出力されること。
