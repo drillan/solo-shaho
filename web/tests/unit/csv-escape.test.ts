@@ -34,6 +34,21 @@ describe('escapeCell — Formula Injection 対策', () => {
 	it('空文字はそのまま', () => {
 		expect(escapeCell('')).toBe('');
 	});
+
+	it('escapes a literal value starting with apostrophe + formula prefix', () => {
+		// 元データ "'=foo" は、エスケープ後にダブルクォートで囲み、内部は ''=foo に
+		expect(escapeCell("'=foo")).toBe(`"''=foo"`);
+	});
+
+	it('round-trips a literal value starting with apostrophe + formula prefix', () => {
+		const original = "'=foo";
+		const escaped = escapeCell(original);
+		// パーサ後の中間値は ''=foo になる(クォートが剥がされる想定)
+		// ここでは escapeCell + unescapeCell の往復を直接検証する
+		// 簡略化のため、エスケープ済みの中身を取り出して unescape に渡す
+		const innerEscaped = escaped.slice(1, -1).replace(/""/g, '"');
+		expect(unescapeCell(innerEscaped)).toBe(original);
+	});
 });
 
 describe('unescapeCell — シングルクォート剥がし', () => {

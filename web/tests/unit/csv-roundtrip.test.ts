@@ -13,7 +13,8 @@ const original: AppState = {
 	monthlyNotes: {
 		'2024-05': { notifiedAmount: 25202, memo: '通常月' },
 		'2026-04': { notifiedAmount: 25088, memo: '=cmd|/c calc' },
-		'2026-05': { notifiedAmount: 25290, memo: '改行を\n含む\nメモ' }
+		'2026-05': { notifiedAmount: 25290, memo: '改行を\n含む\nメモ' },
+		'2026-06': { memo: "'=foo (literal apostrophe + equals)" }
 	}
 };
 
@@ -28,6 +29,8 @@ describe('CSV roundtrip', () => {
 		expect(restored.monthlyNotes['2024-05'].memo).toBe('通常月');
 		// クォート内改行(RFC 4180 multiline)も保持される
 		expect(restored.monthlyNotes['2026-05'].memo).toBe('改行を\n含む\nメモ');
+		// 「' + Formula prefix」で始まる文字列も全単射(I2 修正)
+		expect(restored.monthlyNotes['2026-06'].memo).toBe("'=foo (literal apostrophe + equals)");
 	});
 
 	it('Formula Injection 文字列がエクスポート CSV では先頭シングルクォート付き', () => {

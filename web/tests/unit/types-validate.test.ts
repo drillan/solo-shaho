@@ -105,4 +105,17 @@ describe('validateAppState', () => {
 		};
 		expect(validateAppState(valid)).toEqual(valid);
 	});
+
+	it('throws when stdRemuneration is not a multiple of 1000', () => {
+		expect(() =>
+			validateAppState({
+				schemaVersion: 1,
+				profile: { name: '', birthDate: null },
+				remunerationHistory: [
+					{ effectiveFrom: '2024-04-01', stdRemuneration: 88001, grossSalary: 83000, note: '' }
+				],
+				monthlyNotes: {}
+			})
+		).toThrow(/multiple of 1000/);
+	});
 });

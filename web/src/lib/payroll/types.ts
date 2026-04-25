@@ -173,6 +173,11 @@ function validateRemunerationEntry(input: unknown, index: number): RemunerationE
 			`remunerationHistory[${index}].stdRemuneration must be non-negative integer`
 		);
 	}
+	if (e.stdRemuneration % 1000 !== 0) {
+		throw new AppStateValidationError(
+			`remunerationHistory[${index}].stdRemuneration must be a multiple of 1000 (健保等級表の制約)`
+		);
+	}
 	if (!isNonNegativeInt(e.grossSalary)) {
 		throw new AppStateValidationError(
 			`remunerationHistory[${index}].grossSalary must be non-negative integer`
