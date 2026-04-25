@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	plugins: [sveltekit()],
 	test: {
-		include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
+		include: ['tests/unit/**/*.test.ts', 'tests/fixtures/**/*.test.ts', 'src/**/*.test.ts'],
 		environment: 'happy-dom'
 	}
 });
