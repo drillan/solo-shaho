@@ -96,12 +96,15 @@ export class AppStateValidationError extends Error {
 	}
 }
 
-const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** YYYY-MM-DD 形式の厳密な日付正規表現。kaigo.ts や csv/validate.ts でも再利用する。 */
+export const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+/** YYYY-MM 形式の厳密な月正規表現。calculate.ts や csv/validate.ts でも再利用する。 */
+export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * unknown を AppState として厳密に検証する。
- * loadFromStorage と csv/validate.ts の両方から呼び、入口での検証強度を統一する。
+ * すべての永続化・インポート経路の入口で利用する想定
+ * (stores/appState.ts の loadFromStorage、csv/validate.ts の validateAndConvert)。
  * 不正値はすべて AppStateValidationError として throw(フォールバック禁止)。
  */
 export function validateAppState(input: unknown): AppState {
@@ -123,10 +126,14 @@ export function validateAppState(input: unknown): AppState {
 	if (typeof p.name !== 'string') {
 		throw new AppStateValidationError('profile.name must be a string');
 	}
-	if (
-		p.birthDate !== null &&
-		(typeof p.birthDate !== 'string' || (p.birthDate !== '' && !DATE_RE.test(p.birthDate)))
-	) {
+	// birthDate は null または YYYY-MM-DD のみ許容。空文字 '' は null に正規化して
+	// 下流分岐(kaigo.ts 等)で 3 値ロジックを書かなくて済むようにする。
+	let birthDate: string | null;
+	if (p.birthDate === null || p.birthDate === '') {
+		birthDate = null;
+	} else if (typeof p.birthDate === 'string' && DATE_RE.test(p.birthDate)) {
+		birthDate = p.birthDate;
+	} else {
 		throw new AppStateValidationError('profile.birthDate must be null or YYYY-MM-DD');
 	}
 
@@ -152,7 +159,7 @@ export function validateAppState(input: unknown): AppState {
 
 	return {
 		schemaVersion: CURRENT_SCHEMA_VERSION,
-		profile: { name: p.name, birthDate: p.birthDate as string | null },
+		profile: { name: p.name, birthDate },
 		remunerationHistory,
 		monthlyNotes
 	};

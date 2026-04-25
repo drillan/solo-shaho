@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateMonth, calculateRange } from '$lib/payroll/calculate';
+import { calculateMonth, calculateRange, InvalidYearMonthError } from '$lib/payroll/calculate';
 import type { MonthInput, RateEntry, RemunerationEntry } from '$lib/payroll/types';
 import ratesData from '$lib/data/rates.json';
 
@@ -163,5 +163,39 @@ describe('calculateRange', () => {
 			rateHistory: allRates
 		});
 		expect(results).toEqual([]);
+	});
+
+	it('throws InvalidYearMonthError when start has wrong format (silent failure 防止)', () => {
+		expect(() =>
+			calculateRange('2026/03', '2026-05', {
+				birthDate: '1985-06-15',
+				remunerationHistory: [
+					{
+						effectiveFrom: '2024-04-01',
+						stdRemuneration: 88000,
+						grossSalary: 83000,
+						note: ''
+					}
+				],
+				rateHistory: allRates
+			})
+		).toThrow(InvalidYearMonthError);
+	});
+
+	it('throws InvalidYearMonthError when end has wrong format', () => {
+		expect(() =>
+			calculateRange('2026-03', 'garbage', {
+				birthDate: '1985-06-15',
+				remunerationHistory: [
+					{
+						effectiveFrom: '2024-04-01',
+						stdRemuneration: 88000,
+						grossSalary: 83000,
+						note: ''
+					}
+				],
+				rateHistory: allRates
+			})
+		).toThrow(InvalidYearMonthError);
 	});
 });

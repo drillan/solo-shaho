@@ -1,7 +1,17 @@
+import { DATE_RE } from './types';
+
+export class InvalidBirthDateError extends Error {
+	constructor(value: string) {
+		super(`birthDate must be YYYY-MM-DD, got: ${value}`);
+		this.name = 'InvalidBirthDateError';
+	}
+}
+
 /**
  * 引数 year/month は納付月として解釈する(Excel と同じ)。
  * 該当判定: 40歳誕生日の前日 ≦ 当月末日 < 65歳誕生日の前日
  * birthDate が null/empty の場合は false を返す。
+ * birthDate が YYYY-MM-DD 形式以外の文字列の場合は InvalidBirthDateError を throw。
  */
 export function isKaigoApplicable(birthDate: string | null, year: number, month: number): boolean {
 	if (birthDate === null || birthDate === '') return false;
@@ -30,6 +40,9 @@ function endOfMonth(year: number, month: number): Date {
 }
 
 function parseBirthDate(s: string): [number, number, number] {
+	if (!DATE_RE.test(s)) {
+		throw new InvalidBirthDateError(s);
+	}
 	const [y, m, d] = s.split('-').map(Number);
 	return [y, m, d];
 }

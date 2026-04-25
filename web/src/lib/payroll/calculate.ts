@@ -1,8 +1,21 @@
-import type { MonthInput, MonthResult, RateEntry, RemunerationEntry } from './types';
+import {
+	MONTH_RE,
+	type MonthInput,
+	type MonthResult,
+	type RateEntry,
+	type RemunerationEntry
+} from './types';
 import { isKaigoApplicable, calculateAge } from './kaigo';
 import { splitHalfEmployee, splitHalfEmployer, fullDownToYen } from './round';
 import { findApplicableRate } from './rates';
 import { findApplicableRemuneration } from './remuneration';
+
+export class InvalidYearMonthError extends Error {
+	constructor(value: string, role: 'start' | 'end') {
+		super(`${role} must be YYYY-MM, got: ${value}`);
+		this.name = 'InvalidYearMonthError';
+	}
+}
 
 /**
  * 1 ヶ月分の社会保険料を計算する。
@@ -70,6 +83,7 @@ export function calculateMonth(input: MonthInput): MonthResult {
 /**
  * 範囲計算。AppState には依存しない(層分離)。
  * start/end は包含 ("YYYY-MM")。start > end なら空配列。
+ * フォーマット不正なら InvalidYearMonthError を throw(silent な空配列返しを防ぐ)。
  */
 export function calculateRange(
 	start: string,
@@ -80,6 +94,8 @@ export function calculateRange(
 		rateHistory: readonly RateEntry[];
 	}
 ): MonthResult[] {
+	if (!MONTH_RE.test(start)) throw new InvalidYearMonthError(start, 'start');
+	if (!MONTH_RE.test(end)) throw new InvalidYearMonthError(end, 'end');
 	if (start > end) return [];
 	const results: MonthResult[] = [];
 	for (const ym of monthRange(start, end)) {

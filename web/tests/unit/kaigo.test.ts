@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isKaigoApplicable, calculateAge } from '$lib/payroll/kaigo';
+import { isKaigoApplicable, calculateAge, InvalidBirthDateError } from '$lib/payroll/kaigo';
 
 describe('isKaigoApplicable', () => {
 	it('returns false when birthDate is null', () => {
@@ -53,5 +53,19 @@ describe('calculateAge', () => {
 
 	it('returns 40 for the 40th birthday month (mid-month birthday)', () => {
 		expect(calculateAge('1985-06-15', 2025, 6)).toBe(40);
+	});
+});
+
+describe('isKaigoApplicable / calculateAge — フォーマット検証(silent failure 防止)', () => {
+	it('isKaigoApplicable: throws on invalid format like 1985/06/15', () => {
+		expect(() => isKaigoApplicable('1985/06/15', 2025, 6)).toThrow(InvalidBirthDateError);
+	});
+
+	it('isKaigoApplicable: throws on garbage string', () => {
+		expect(() => isKaigoApplicable('not-a-date', 2025, 6)).toThrow(InvalidBirthDateError);
+	});
+
+	it('calculateAge: throws on invalid format', () => {
+		expect(() => calculateAge('1985/06/15', 2025, 6)).toThrow(InvalidBirthDateError);
 	});
 });

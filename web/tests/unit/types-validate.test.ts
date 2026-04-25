@@ -118,4 +118,36 @@ describe('validateAppState', () => {
 			})
 		).toThrow(/multiple of 1000/);
 	});
+
+	it('throws when monthlyNotes notifiedAmount is negative', () => {
+		expect(() =>
+			validateAppState({
+				schemaVersion: 1,
+				profile: { name: '', birthDate: null },
+				remunerationHistory: [],
+				monthlyNotes: { '2024-05': { notifiedAmount: -1 } }
+			})
+		).toThrow(/notifiedAmount/);
+	});
+
+	it('throws when monthlyNotes memo is not a string', () => {
+		expect(() =>
+			validateAppState({
+				schemaVersion: 1,
+				profile: { name: '', birthDate: null },
+				remunerationHistory: [],
+				monthlyNotes: { '2024-05': { memo: 123 } }
+			})
+		).toThrow(/memo/);
+	});
+
+	it("normalizes profile.birthDate '' to null", () => {
+		const result = validateAppState({
+			schemaVersion: 1,
+			profile: { name: '', birthDate: '' },
+			remunerationHistory: [],
+			monthlyNotes: {}
+		});
+		expect(result.profile.birthDate).toBeNull();
+	});
 });
