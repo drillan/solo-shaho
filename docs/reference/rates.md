@@ -289,4 +289,4 @@
   - 月間 150 万円
 ```
 
-詳細は [既知の制限](limitations.md) を参照。
+詳細は [既知の制限](../excel/limitations.md) を参照。

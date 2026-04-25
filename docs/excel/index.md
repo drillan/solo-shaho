@@ -45,6 +45,6 @@
 詳細は次章以降を参照してください。
 
 - [シート仕様](sheets.md)
-- [計算ロジック](logic.md)
-- [料率の知識](rates.md)
-- [納付月セマンティクス](semantics.md)
+- [計算ロジック](../reference/logic.md)
+- [料率の知識](../reference/rates.md)
+- [納付月セマンティクス](../reference/semantics.md)
