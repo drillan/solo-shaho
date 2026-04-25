@@ -10,6 +10,22 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-25-payroll-web-app-design.md`
 
+**Revisions:**
+
+- 2026-04-25 v2: hachimoku レビュー反映 — Critical/Important 計 9 件
+  - Task 29 の `buildLabels` の silent failure(`std=0` フォールバック)を削除し、表示範囲を履歴最古でクランプする方式へ
+  - Task 19 の `localStorage.setItem` 失敗を `persistenceErrorStore`(Task 18 新規追加)経由で UI バナー通知
+  - Task 30 の `await file.text()` を try/catch で囲んで I/O 失敗を表示
+  - Task 17 の `as any` を排除、`MonthResult` ベースの直接渡しへ
+  - Task 8/15: `MonthResult` に `year`/`month` を追加し並列配列パターンを排除
+  - Task 22/24: `AppState` 型の所在を `payroll/types.ts` に移し csv→stores の層方向逆転を解消
+  - Task 19/24: `loadFromStorage` と `validateAndConvert` で `validateAppState` を共有
+  - Task 23: parseCsv を 1 パス状態機械に書き換え、クォート内改行(RFC 4180 multiline)に対応
+  - Task 25: ラウンドトリップテストに改行ケース追加
+  - Task 27: 新規行のデフォルト `effectiveFrom` を当月1日にし、空文字での暗黙ゼロフォールバックを排除
+  - Task 29: ローカル `YearSummary` 型を `payroll/types.ts` の単一定義に統合
+  - File structure: `appState.ts` のコメントを「バージョン検証」に修正
+
 ---
 
 ## File Structure
@@ -23,17 +39,18 @@ solo-shaho/
 └── web/                                 # 新規プロジェクト ROOT
     ├── src/
     │   ├── lib/
-    │   │   ├── payroll/                 # 計算エンジン(AppState 非依存)
-    │   │   │   ├── types.ts             # RateEntry, RemunerationEntry, MonthInput, MonthResult, YearSummary
+    │   │   ├── payroll/                 # 計算エンジン(stores 非依存・純粋関数群)
+    │   │   │   ├── types.ts             # ドメイン型: RateEntry, RemunerationEntry, MonthInput, MonthResult, YearSummary, AppState, MonthlyNote, CURRENT_SCHEMA_VERSION, validateAppState
     │   │   │   ├── lookup.ts            # findApplicableEntry<T>, EntryNotFoundError
     │   │   │   ├── rates.ts             # findApplicableRate (lookup の薄いラッパー)
     │   │   │   ├── remuneration.ts      # findApplicableRemuneration
     │   │   │   ├── kaigo.ts             # isKaigoApplicable, calculateAge
     │   │   │   ├── round.ts             # splitHalfEmployee, splitHalfEmployer, fullDownToYen
     │   │   │   ├── calculate.ts         # calculateMonth, calculateRange
-    │   │   │   └── aggregate.ts         # aggregateByCalendarYear
+    │   │   │   └── aggregate.ts         # aggregateByCalendarYear (MonthResult[] を直接受ける)
     │   │   ├── stores/
-    │   │   │   ├── appState.ts          # AppState store + localStorage 永続化 + マイグレーション
+    │   │   │   ├── appState.ts          # AppState store + localStorage 永続化 + バージョン検証(types.ts の validateAppState を共有)
+    │   │   │   ├── persistence.ts       # 永続化エラー store(QuotaExceeded 等を伝播)
     │   │   │   └── results.ts           # 派生 store(計算結果)
     │   │   ├── csv/
     │   │   │   ├── escape.ts            # Formula Injection エスケープ + RFC 4180
@@ -497,10 +514,12 @@ git commit -m "chore(web): minimal ESLint config" || echo "no changes"
 **Files:**
 - Create: `web/src/lib/payroll/types.ts`
 
-- [ ] **Step 1: 型定義ファイルを作成**
+- [ ] **Step 1: 型定義ファイルを作成(ドメイン型 + 構造バリデータ)**
 
 ```typescript
 // web/src/lib/payroll/types.ts
+
+export const CURRENT_SCHEMA_VERSION = 1 as const;
 
 /** 料率履歴の 1 エントリ。すべて 1/100,000 単位の整数。 */
 export interface RateEntry {
@@ -513,26 +532,28 @@ export interface RateEntry {
   note: string;
 }
 
-/** 報酬改定履歴の 1 エントリ。 */
+/** 報酬改定履歴の 1 エントリ。note は必須(空文字許容)。 */
 export interface RemunerationEntry {
   effectiveFrom: string;        // "YYYY-MM-DD"
   stdRemuneration: number;      // 標準報酬月額(整数円・1000 の倍数)
   grossSalary: number;          // 給与額面(整数円)
-  note?: string;
+  note: string;                 // 空文字許容、undefined 不可(RateEntry と対称)
 }
 
 /** calculateMonth への入力。 */
 export interface MonthInput {
   year: number;                 // 納付月の年
   month: number;                // 納付月の月 (1..12)
-  stdRemuneration: number;      // 標準報酬月額
-  grossSalary: number;          // 給与額面
-  birthDate: string | null;     // "YYYY-MM-DD" または null
-  rates: RateEntry;             // 当月適用される料率
+  stdRemuneration: number;
+  grossSalary: number;
+  birthDate: string | null;
+  rates: RateEntry;
 }
 
-/** calculateMonth の戻り値。 */
+/** calculateMonth の戻り値。year/month を内包し、並列配列パターンを排除する。 */
 export interface MonthResult {
+  year: number;
+  month: number;
   age: number | null;
   isKaigoApplicable: boolean;
   /** 適用済み健保料率(1/100,000 単位整数) = kenpoBase + (isKaigoApplicable ? kaigo : 0) */
@@ -566,6 +587,144 @@ export interface YearSummary {
   employerBurdenTotal: number;
   payableTotal: number;
 }
+
+/** 月次メモ(ノート)。月情報は AppState.monthlyNotes の Record キーで一意に表現する。 */
+export interface MonthlyNote {
+  notifiedAmount?: number;
+  memo?: string;
+}
+
+/** アプリケーションの永続化ドメイン状態。 */
+export interface AppState {
+  schemaVersion: typeof CURRENT_SCHEMA_VERSION;
+  profile: {
+    name: string;
+    birthDate: string | null;
+  };
+  remunerationHistory: RemunerationEntry[];
+  monthlyNotes: Record<string, MonthlyNote>;
+}
+
+export function createDefaultAppState(): AppState {
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    profile: { name: '', birthDate: null },
+    remunerationHistory: [],
+    monthlyNotes: {}
+  };
+}
+
+export class AppStateValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AppStateValidationError';
+  }
+}
+
+const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * unknown を AppState として厳密に検証する。
+ * loadFromStorage と csv/validate.ts の両方から呼び、入口での検証強度を統一する。
+ * 不正値はすべて AppStateValidationError として throw(フォールバック禁止)。
+ */
+export function validateAppState(input: unknown): AppState {
+  if (typeof input !== 'object' || input === null) {
+    throw new AppStateValidationError('AppState must be an object');
+  }
+  const o = input as Record<string, unknown>;
+
+  if (o.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    throw new AppStateValidationError(
+      `Unsupported schemaVersion: ${String(o.schemaVersion)} (expected ${CURRENT_SCHEMA_VERSION})`
+    );
+  }
+
+  if (typeof o.profile !== 'object' || o.profile === null) {
+    throw new AppStateValidationError('profile must be an object');
+  }
+  const p = o.profile as Record<string, unknown>;
+  if (typeof p.name !== 'string') {
+    throw new AppStateValidationError('profile.name must be a string');
+  }
+  if (p.birthDate !== null && (typeof p.birthDate !== 'string' || (p.birthDate !== '' && !DATE_RE.test(p.birthDate)))) {
+    throw new AppStateValidationError('profile.birthDate must be null or YYYY-MM-DD');
+  }
+
+  if (!Array.isArray(o.remunerationHistory)) {
+    throw new AppStateValidationError('remunerationHistory must be an array');
+  }
+  const remunerationHistory = o.remunerationHistory.map((e, i) => validateRemunerationEntry(e, i));
+
+  if (typeof o.monthlyNotes !== 'object' || o.monthlyNotes === null || Array.isArray(o.monthlyNotes)) {
+    throw new AppStateValidationError('monthlyNotes must be an object');
+  }
+  const monthlyNotes: Record<string, MonthlyNote> = {};
+  for (const [key, value] of Object.entries(o.monthlyNotes as Record<string, unknown>)) {
+    if (!MONTH_RE.test(key)) {
+      throw new AppStateValidationError(`Invalid monthlyNotes key: ${key}`);
+    }
+    monthlyNotes[key] = validateMonthlyNote(value, key);
+  }
+
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    profile: { name: p.name, birthDate: p.birthDate as string | null },
+    remunerationHistory,
+    monthlyNotes
+  };
+}
+
+function validateRemunerationEntry(input: unknown, index: number): RemunerationEntry {
+  if (typeof input !== 'object' || input === null) {
+    throw new AppStateValidationError(`remunerationHistory[${index}] must be an object`);
+  }
+  const e = input as Record<string, unknown>;
+  if (typeof e.effectiveFrom !== 'string' || !DATE_RE.test(e.effectiveFrom)) {
+    throw new AppStateValidationError(`remunerationHistory[${index}].effectiveFrom invalid: ${String(e.effectiveFrom)}`);
+  }
+  if (!isNonNegativeInt(e.stdRemuneration)) {
+    throw new AppStateValidationError(`remunerationHistory[${index}].stdRemuneration must be non-negative integer`);
+  }
+  if (!isNonNegativeInt(e.grossSalary)) {
+    throw new AppStateValidationError(`remunerationHistory[${index}].grossSalary must be non-negative integer`);
+  }
+  if (typeof e.note !== 'string') {
+    throw new AppStateValidationError(`remunerationHistory[${index}].note must be a string`);
+  }
+  return {
+    effectiveFrom: e.effectiveFrom,
+    stdRemuneration: e.stdRemuneration,
+    grossSalary: e.grossSalary,
+    note: e.note
+  };
+}
+
+function validateMonthlyNote(input: unknown, key: string): MonthlyNote {
+  if (typeof input !== 'object' || input === null) {
+    throw new AppStateValidationError(`monthlyNotes[${key}] must be an object`);
+  }
+  const n = input as Record<string, unknown>;
+  const out: MonthlyNote = {};
+  if (n.notifiedAmount !== undefined) {
+    if (!isNonNegativeInt(n.notifiedAmount)) {
+      throw new AppStateValidationError(`monthlyNotes[${key}].notifiedAmount must be non-negative integer`);
+    }
+    out.notifiedAmount = n.notifiedAmount;
+  }
+  if (n.memo !== undefined) {
+    if (typeof n.memo !== 'string') {
+      throw new AppStateValidationError(`monthlyNotes[${key}].memo must be a string`);
+    }
+    out.memo = n.memo;
+  }
+  return out;
+}
+
+function isNonNegativeInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0;
+}
 ```
 
 - [ ] **Step 2: 型チェック**
@@ -577,11 +736,129 @@ pnpm typecheck
 
 期待: エラーゼロ。
 
-- [ ] **Step 3: コミット**
+- [ ] **Step 3: validateAppState のテストを追加**
+
+`web/tests/unit/types-validate.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import {
+  validateAppState,
+  AppStateValidationError,
+  createDefaultAppState
+} from '$lib/payroll/types';
+
+describe('validateAppState', () => {
+  it('accepts createDefaultAppState() output', () => {
+    expect(() => validateAppState(createDefaultAppState())).not.toThrow();
+  });
+
+  it('throws on non-object input', () => {
+    expect(() => validateAppState(null)).toThrow(AppStateValidationError);
+    expect(() => validateAppState('x')).toThrow(AppStateValidationError);
+  });
+
+  it('throws on schemaVersion mismatch', () => {
+    expect(() => validateAppState({ schemaVersion: 2 })).toThrow(/schemaVersion/);
+  });
+
+  it('throws when profile.name is not a string', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: 123, birthDate: null },
+        remunerationHistory: [],
+        monthlyNotes: {}
+      })
+    ).toThrow(/profile.name/);
+  });
+
+  it('throws when profile.birthDate is invalid format', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: '1985/06/15' },
+        remunerationHistory: [],
+        monthlyNotes: {}
+      })
+    ).toThrow(/birthDate/);
+  });
+
+  it('throws when remunerationHistory is not an array', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: null },
+        remunerationHistory: {},
+        monthlyNotes: {}
+      })
+    ).toThrow(/remunerationHistory/);
+  });
+
+  it('throws when remunerationHistory entry has invalid effectiveFrom', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: null },
+        remunerationHistory: [
+          { effectiveFrom: '2024/04/01', stdRemuneration: 88000, grossSalary: 83000, note: '' }
+        ],
+        monthlyNotes: {}
+      })
+    ).toThrow(/effectiveFrom/);
+  });
+
+  it('throws when monthlyNotes key is invalid', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: null },
+        remunerationHistory: [],
+        monthlyNotes: { 'invalid': {} }
+      })
+    ).toThrow(/monthlyNotes key/);
+  });
+
+  it('throws on negative numeric value', () => {
+    expect(() =>
+      validateAppState({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: null },
+        remunerationHistory: [
+          { effectiveFrom: '2024-04-01', stdRemuneration: -1, grossSalary: 0, note: '' }
+        ],
+        monthlyNotes: {}
+      })
+    ).toThrow(/non-negative/);
+  });
+
+  it('preserves valid input', () => {
+    const valid = {
+      schemaVersion: 1 as const,
+      profile: { name: '山田', birthDate: '1985-06-15' },
+      remunerationHistory: [
+        { effectiveFrom: '2024-04-01', stdRemuneration: 88000, grossSalary: 83000, note: '定時決定' }
+      ],
+      monthlyNotes: { '2024-05': { notifiedAmount: 25202 } }
+    };
+    expect(validateAppState(valid)).toEqual(valid);
+  });
+});
+```
+
+- [ ] **Step 4: テスト実行**
 
 ```bash
-git add web/src/lib/payroll/types.ts
-git commit -m "feat(payroll): add core type definitions"
+pnpm test tests/unit/types-validate.test.ts
+```
+
+期待: 10 passed。
+
+- [ ] **Step 5: コミット**
+
+```bash
+git add web/src/lib/payroll/types.ts web/tests/unit/types-validate.test.ts
+git commit -m "feat(payroll): add domain types and validateAppState"
 ```
 
 ---
@@ -1272,7 +1549,7 @@ const rate2026May: RateEntry = {
   note: '2026年5月納付分(支援金開始)'
 };
 
-describe('calculateMonth — 2026/04 (under 40, no kaigo, no shien)', () => {
+describe('calculateMonth — 2026/04 (kaigo applicable, no shien yet)', () => {
   const input: MonthInput = {
     year: 2026,
     month: 4,
@@ -1283,17 +1560,20 @@ describe('calculateMonth — 2026/04 (under 40, no kaigo, no shien)', () => {
   };
   const r = calculateMonth(input);
 
-  it('age = 40 (mid-month birthday in June, but in April we are still 40 — wait actually 39 → 40)', () => {
+  it('結果に year=2026, month=4 が埋め込まれる', () => {
+    expect(r.year).toBe(2026);
+    expect(r.month).toBe(4);
+  });
+
+  it('age = 40 (April month-end is before the June birthday → year diff − 1)', () => {
     // 1985-06-15 生まれ、2026-04 月末 = 2026-04-30
-    // 2026-04-30 < 1985-06-15 → 月日比較で 1 歳引く → 41-1 = 40
+    // 月日比較で 04-30 < 06-15 のため year 差から 1 引く → 41 - 1 = 40
     expect(r.age).toBe(40);
   });
 
-  it('not kaigo applicable (2026-04 month-end < 2025-06-14? No, 2026-04-30 > 2025-06-14 → kaigo OK actually)', () => {
-    // 1985-06-15 → 40歳誕生日 = 2025-06-15、前日 = 2025-06-14
-    // 2026-04-30 ≥ 2025-06-14 ✓
-    // 65歳誕生日前日 = 2050-06-14、2026-04-30 < 2050-06-14 ✓
-    // → 介護該当
+  it('介護該当 (40歳誕生日 2025-06-15 前日以降、65歳誕生日前日未満)', () => {
+    // 40歳誕生日前日 = 2025-06-14、65歳誕生日前日 = 2050-06-14
+    // 2026-04-30 ∈ [2025-06-14, 2050-06-14) → 該当
     expect(r.isKaigoApplicable).toBe(true);
   });
 
@@ -1311,11 +1591,8 @@ describe('calculateMonth — 2026/04 (under 40, no kaigo, no shien)', () => {
     expect(r.kenpoEmployee + r.kenpoEmployer).toBe(r.kenpoTotal);
   });
 
-  it('kenpoEmployee = 5735 (kaigo 込み 11.47% の半額)', () => {
-    // 全額_sen = 88000 * 11470 / 1000 = 1009360
-    // splitHalfEmployee(1009360) = 5047? 待って、これは kenpoBase only の場合
-    // 11.47% → 全額 = 10093.6, 半額 = 5046.8, 50銭超 → 5047
-    // → 5047
+  it('kenpoEmployee = 5047 (kaigo 込み 11.47% の半額・50銭超切上げ)', () => {
+    // 全額 = 88000 × 11.47% = 10093.6, 半額 = 5046.8, 60銭は50銭超 → 切上げ → 5047
     expect(r.kenpoEmployee).toBe(5047);
     expect(r.kenpoEmployer).toBe(10093 - 5047);
   });
@@ -1435,6 +1712,8 @@ export function calculateMonth(input: MonthInput): MonthResult {
   const netSalary = grossSalary - employeeDeductionTotal;
 
   return {
+    year,
+    month,
     age,
     isKaigoApplicable: isKaigo,
     appliedKenpoRate,
@@ -1622,13 +1901,29 @@ git commit -m "feat(payroll): implement calculateRange with layer-isolated param
 import { describe, it, expect } from 'vitest';
 import { aggregateByCalendarYear } from '$lib/payroll/aggregate';
 import { calculateRange } from '$lib/payroll/calculate';
-import type { RateEntry, RemunerationEntry } from '$lib/payroll/types';
+import type { MonthResult, RateEntry, RemunerationEntry } from '$lib/payroll/types';
 import ratesData from '$lib/data/rates.json';
 
 const rateHistory = ratesData.history as RateEntry[];
 const remunerationHistory: RemunerationEntry[] = [
   { effectiveFrom: '2024-04-01', stdRemuneration: 88000, grossSalary: 83000, note: '' }
 ];
+
+function makeStub(year: number, month: number, ed: number, eb: number, total: number): MonthResult {
+  return {
+    year, month,
+    age: null,
+    isKaigoApplicable: false,
+    appliedKenpoRate: 0,
+    kenpoTotal: 0, koseiTotal: 0, kosodateTotal: 0, shienTotal: 0,
+    kenpoEmployee: 0, koseiEmployee: 0, shienEmployee: 0,
+    kenpoEmployer: 0, koseiEmployer: 0, kosodateEmployer: 0, shienEmployer: 0,
+    employeeDeductionTotal: ed,
+    employerBurdenTotal: eb,
+    payableTotal: total,
+    netSalary: 0
+  };
+}
 
 describe('aggregateByCalendarYear', () => {
   it('returns one summary per calendar year present in the input', () => {
@@ -1637,12 +1932,8 @@ describe('aggregateByCalendarYear', () => {
       remunerationHistory,
       rateHistory
     });
-    // results が持つ year は 2024, 2025, 2025 の 3 ヶ月
-    // 但し results 自体には year が無いので、aggregate は別途 year を必要とする…
-    // → results は MonthResult のみで year 情報なし。aggregate は (year, MonthResult)[] の形にする
-    // ここでは「呼び出し側が tuple を作って渡す」形で実装する
-    const tagged = results.map((r, i) => ({ year: i === 0 ? 2024 : 2025, result: r }));
-    const summaries = aggregateByCalendarYear(tagged);
+    // results は MonthResult[] で year/month を内包しているため、そのまま渡せる
+    const summaries = aggregateByCalendarYear(results);
     expect(summaries).toHaveLength(2);
     expect(summaries[0].year).toBe(2024);
     expect(summaries[0].monthCount).toBe(1);
@@ -1651,15 +1942,18 @@ describe('aggregateByCalendarYear', () => {
   });
 
   it('合計値が正しい', () => {
-    const tagged = [
-      { year: 2024, result: { employeeDeductionTotal: 100, employerBurdenTotal: 200, payableTotal: 300 } as any },
-      { year: 2024, result: { employeeDeductionTotal: 110, employerBurdenTotal: 210, payableTotal: 320 } as any }
-    ];
-    const summaries = aggregateByCalendarYear(tagged);
+    const summaries = aggregateByCalendarYear([
+      makeStub(2024, 5, 100, 200, 300),
+      makeStub(2024, 6, 110, 210, 320)
+    ]);
     expect(summaries).toHaveLength(1);
     expect(summaries[0].employeeDeductionTotal).toBe(210);
     expect(summaries[0].employerBurdenTotal).toBe(410);
     expect(summaries[0].payableTotal).toBe(620);
+  });
+
+  it('空配列なら空配列を返す', () => {
+    expect(aggregateByCalendarYear([])).toEqual([]);
   });
 });
 ```
@@ -1679,34 +1973,30 @@ pnpm test tests/unit/aggregate.test.ts
 ```typescript
 import type { MonthResult, YearSummary } from './types';
 
-export interface TaggedMonth {
-  year: number;
-  result: Pick<
-    MonthResult,
-    'employeeDeductionTotal' | 'employerBurdenTotal' | 'payableTotal'
-  >;
-}
-
+/**
+ * 月次計算結果を暦年で集計する。MonthResult が year/month を内包しているため
+ * 並列配列パターンや TaggedMonth ラッパーは不要。
+ */
 export function aggregateByCalendarYear(
-  months: readonly TaggedMonth[]
+  months: readonly MonthResult[]
 ): YearSummary[] {
   const byYear = new Map<number, YearSummary>();
-  for (const { year, result } of months) {
-    let s = byYear.get(year);
+  for (const r of months) {
+    let s = byYear.get(r.year);
     if (!s) {
       s = {
-        year,
+        year: r.year,
         monthCount: 0,
         employeeDeductionTotal: 0,
         employerBurdenTotal: 0,
         payableTotal: 0
       };
-      byYear.set(year, s);
+      byYear.set(r.year, s);
     }
     s.monthCount += 1;
-    s.employeeDeductionTotal += result.employeeDeductionTotal;
-    s.employerBurdenTotal += result.employerBurdenTotal;
-    s.payableTotal += result.payableTotal;
+    s.employeeDeductionTotal += r.employeeDeductionTotal;
+    s.employerBurdenTotal += r.employerBurdenTotal;
+    s.payableTotal += r.payableTotal;
   }
   return [...byYear.values()].sort((a, b) => a.year - b.year);
 }
@@ -1731,38 +2021,39 @@ git commit -m "feat(payroll): implement aggregateByCalendarYear"
 
 ## Phase C: State Management
 
-### Task 18: Define `AppState` types and defaults
+### Task 18: Persistence error store
 
 **Files:**
-- Create: `web/src/lib/stores/appState.ts`
-- Create: `web/tests/unit/store-defaults.test.ts`
+- Create: `web/src/lib/stores/persistence.ts`
+- Create: `web/tests/unit/persistence-store.test.ts`
+
+`localStorage.setItem` 失敗(QuotaExceededError、SecurityError 等)を購読可能にして UI でユーザーへ通知するための専用 store。silent failure を防止する。
 
 - [ ] **Step 1: 失敗するテスト**
 
-`web/tests/unit/store-defaults.test.ts`:
+`web/tests/unit/persistence-store.test.ts`:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { createDefaultAppState, CURRENT_SCHEMA_VERSION } from '$lib/stores/appState';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { get } from 'svelte/store';
+import { persistenceErrorStore, reportPersistenceError, clearPersistenceError } from '$lib/stores/persistence';
 
-describe('createDefaultAppState', () => {
-  it('returns AppState with schemaVersion = CURRENT_SCHEMA_VERSION', () => {
-    const s = createDefaultAppState();
-    expect(s.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+describe('persistenceErrorStore', () => {
+  beforeEach(() => clearPersistenceError());
+
+  it('initial value is null', () => {
+    expect(get(persistenceErrorStore)).toBeNull();
   });
 
-  it('default profile has empty name and null birthDate', () => {
-    const s = createDefaultAppState();
-    expect(s.profile.name).toBe('');
-    expect(s.profile.birthDate).toBeNull();
+  it('reportPersistenceError sets the latest error', () => {
+    reportPersistenceError(new Error('quota'));
+    expect(get(persistenceErrorStore)?.message).toBe('quota');
   });
 
-  it('default remunerationHistory is empty array', () => {
-    expect(createDefaultAppState().remunerationHistory).toEqual([]);
-  });
-
-  it('default monthlyNotes is empty object', () => {
-    expect(createDefaultAppState().monthlyNotes).toEqual({});
+  it('clearPersistenceError resets to null', () => {
+    reportPersistenceError(new Error('x'));
+    clearPersistenceError();
+    expect(get(persistenceErrorStore)).toBeNull();
   });
 });
 ```
@@ -1770,68 +2061,55 @@ describe('createDefaultAppState', () => {
 - [ ] **Step 2: テスト失敗確認**
 
 ```bash
-pnpm test tests/unit/store-defaults.test.ts
+pnpm test tests/unit/persistence-store.test.ts
 ```
-
-期待: FAIL。
 
 - [ ] **Step 3: 実装**
 
-`web/src/lib/stores/appState.ts`:
+`web/src/lib/stores/persistence.ts`:
 
 ```typescript
-import type { RemunerationEntry } from '$lib/payroll/types';
+import { writable, type Readable } from 'svelte/store';
 
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+const _errorStore = writable<Error | null>(null);
 
-export interface AppState {
-  schemaVersion: 1;
-  profile: {
-    name: string;
-    birthDate: string | null;
-  };
-  remunerationHistory: RemunerationEntry[];
-  monthlyNotes: Record<string, MonthlyNote>;
+export const persistenceErrorStore: Readable<Error | null> = {
+  subscribe: _errorStore.subscribe
+};
+
+export function reportPersistenceError(e: Error): void {
+  _errorStore.set(e);
 }
 
-export interface MonthlyNote {
-  // month は monthlyNotes の Record キーで一意に表現するため、ここでは保持しない
-  notifiedAmount?: number;
-  memo?: string;
-}
-
-export function createDefaultAppState(): AppState {
-  return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-    profile: { name: '', birthDate: null },
-    remunerationHistory: [],
-    monthlyNotes: {}
-  };
+export function clearPersistenceError(): void {
+  _errorStore.set(null);
 }
 ```
 
 - [ ] **Step 4: テスト成功確認**
 
 ```bash
-pnpm test tests/unit/store-defaults.test.ts
+pnpm test tests/unit/persistence-store.test.ts
 ```
 
-期待: 4 passed。
+期待: 3 passed。
 
 - [ ] **Step 5: コミット**
 
 ```bash
-git add web/src/lib/stores/appState.ts web/tests/unit/store-defaults.test.ts
-git commit -m "feat(store): add AppState types and createDefaultAppState"
+git add web/src/lib/stores/persistence.ts web/tests/unit/persistence-store.test.ts
+git commit -m "feat(store): add persistenceErrorStore for surfacing localStorage failures"
 ```
 
 ---
 
-### Task 19: Implement localStorage persistence with debounce + migration
+### Task 19: Implement localStorage persistence with debounce + structural validation
 
 **Files:**
-- Modify: `web/src/lib/stores/appState.ts`
+- Create: `web/src/lib/stores/appState.ts`
 - Create: `web/tests/unit/store-persistence.test.ts`
+
+`appState.ts` は `payroll/types.ts` のドメイン型(`AppState`、`createDefaultAppState`、`validateAppState`)を import し、Svelte store + localStorage 永続化のみを担当する。
 
 - [ ] **Step 1: 失敗するテスト**
 
@@ -1839,12 +2117,15 @@ git commit -m "feat(store): add AppState types and createDefaultAppState"
 
 ```typescript
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createAppStateStore, STORAGE_KEY } from '$lib/stores/appState';
 import { get } from 'svelte/store';
+import { createAppStateStore, STORAGE_KEY } from '$lib/stores/appState';
+import { persistenceErrorStore, clearPersistenceError } from '$lib/stores/persistence';
+import { AppStateValidationError } from '$lib/payroll/types';
 
 describe('createAppStateStore', () => {
   beforeEach(() => {
     localStorage.clear();
+    clearPersistenceError();
     vi.useFakeTimers();
   });
 
@@ -1854,14 +2135,13 @@ describe('createAppStateStore', () => {
 
   it('returns default state when localStorage is empty', () => {
     const store = createAppStateStore();
-    const state = get(store);
-    expect(state.profile.name).toBe('');
+    expect(get(store).profile.name).toBe('');
   });
 
   it('persists changes to localStorage after debounce', () => {
     const store = createAppStateStore();
     store.update((s) => ({ ...s, profile: { ...s.profile, name: '山田' } }));
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull(); // before debounce
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     vi.advanceTimersByTime(400);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
     expect(stored.profile.name).toBe('山田');
@@ -1883,15 +2163,45 @@ describe('createAppStateStore', () => {
 
   it('throws StorageCorruptError on invalid JSON', () => {
     localStorage.setItem(STORAGE_KEY, 'not-json');
-    expect(() => createAppStateStore()).toThrow();
+    expect(() => createAppStateStore()).toThrow(/parse/);
   });
 
-  it('throws on schemaVersion mismatch', () => {
+  it('throws AppStateValidationError on schemaVersion mismatch', () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ schemaVersion: 999, profile: {}, remunerationHistory: [], monthlyNotes: {} })
     );
-    expect(() => createAppStateStore()).toThrow(/schemaVersion/);
+    expect(() => createAppStateStore()).toThrow(AppStateValidationError);
+  });
+
+  it('throws AppStateValidationError on structural corruption (e.g., remunerationHistory not array)', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        profile: { name: '', birthDate: null },
+        remunerationHistory: 'not-an-array',
+        monthlyNotes: {}
+      })
+    );
+    expect(() => createAppStateStore()).toThrow(AppStateValidationError);
+  });
+
+  it('reports persistence error to persistenceErrorStore on setItem failure', () => {
+    const store = createAppStateStore();
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    };
+    try {
+      store.update((s) => ({ ...s, profile: { ...s.profile, name: 'X' } }));
+      vi.advanceTimersByTime(400);
+      const err = get(persistenceErrorStore);
+      expect(err).not.toBeNull();
+      expect(err?.message).toMatch(/Quota/);
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+    }
   });
 });
 ```
@@ -1904,12 +2214,17 @@ pnpm test tests/unit/store-persistence.test.ts
 
 期待: FAIL。
 
-- [ ] **Step 3: `web/src/lib/stores/appState.ts` を拡張**
-
-末尾に追加:
+- [ ] **Step 3: `web/src/lib/stores/appState.ts` を実装**
 
 ```typescript
 import { writable, type Writable } from 'svelte/store';
+import { browser } from '$app/environment';
+import {
+  validateAppState,
+  createDefaultAppState,
+  type AppState
+} from '$lib/payroll/types';
+import { reportPersistenceError } from './persistence';
 
 export const STORAGE_KEY = 'solo-shaho-state' as const;
 const DEBOUNCE_MS = 300;
@@ -1921,13 +2236,6 @@ export class StorageCorruptError extends Error {
   }
 }
 
-export class StorageVersionError extends Error {
-  constructor(found: number) {
-    super(`Unsupported schemaVersion: ${found} (expected ${CURRENT_SCHEMA_VERSION})`);
-    this.name = 'StorageVersionError';
-  }
-}
-
 export function createAppStateStore(): Writable<AppState> {
   const initial = loadFromStorage();
   const store = writable<AppState>(initial);
@@ -1935,8 +2243,15 @@ export function createAppStateStore(): Writable<AppState> {
   store.subscribe((state) => {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      timer = null;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // QuotaExceededError, SecurityError 等を専用 store に push して
+        // UI レイヤがバナー表示等で必ずユーザーに伝える(silent data loss を防ぐ)
+        reportPersistenceError(e instanceof Error ? e : new Error(String(e)));
+      } finally {
+        timer = null;
+      }
     }, DEBOUNCE_MS);
   });
   return store;
@@ -1951,14 +2266,17 @@ function loadFromStorage(): AppState {
   } catch (e) {
     throw new StorageCorruptError(`Failed to parse localStorage: ${(e as Error).message}`);
   }
-  if (typeof parsed !== 'object' || parsed === null || !('schemaVersion' in parsed)) {
-    throw new StorageCorruptError('Stored state missing schemaVersion');
-  }
-  const v = (parsed as { schemaVersion: unknown }).schemaVersion;
-  if (v !== CURRENT_SCHEMA_VERSION) {
-    throw new StorageVersionError(typeof v === 'number' ? v : -1);
-  }
-  return parsed as AppState;
+  // CSV インポートと同じ validateAppState を使い、入口の検証強度を統一する
+  return validateAppState(parsed);
+}
+
+let _store: Writable<AppState> | null = null;
+
+/** ブラウザでのみ初期化されるシングルトンの AppState ストア。 */
+export function getAppStateStore(): Writable<AppState> {
+  if (!browser) return writable(createDefaultAppState());
+  if (_store === null) _store = createAppStateStore();
+  return _store;
 }
 ```
 
@@ -1968,13 +2286,13 @@ function loadFromStorage(): AppState {
 pnpm test tests/unit/store-persistence.test.ts
 ```
 
-期待: 5 passed。
+期待: 7 passed。
 
 - [ ] **Step 5: コミット**
 
 ```bash
 git add web/src/lib/stores/appState.ts web/tests/unit/store-persistence.test.ts
-git commit -m "feat(store): persist AppState to localStorage with debounce + version check"
+git commit -m "feat(store): persist AppState with shared validator + persistence error reporting"
 ```
 
 ---
@@ -1989,10 +2307,8 @@ git commit -m "feat(store): persist AppState to localStorage with debounce + ver
 - [ ] **Step 1: `web/src/lib/stores/results.ts` を作成**
 
 ```typescript
-import { derived, type Readable } from 'svelte/store';
-import type { Writable } from 'svelte/store';
-import type { AppState } from './appState';
-import type { MonthResult, RateEntry } from '$lib/payroll/types';
+import { derived, type Readable, type Writable } from 'svelte/store';
+import type { AppState, MonthResult, RateEntry } from '$lib/payroll/types';
 import { calculateRange } from '$lib/payroll/calculate';
 import ratesData from '$lib/data/rates.json';
 
@@ -2170,7 +2486,7 @@ git commit -m "feat(csv): implement Formula Injection-safe cell escape"
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { serializeAppState } from '$lib/csv/serialize';
-import type { AppState } from '$lib/stores/appState';
+import type { AppState } from '$lib/payroll/types';
 
 const sample: AppState = {
   schemaVersion: 1,
@@ -2179,7 +2495,7 @@ const sample: AppState = {
     { effectiveFrom: '2024-04-01', stdRemuneration: 88000, grossSalary: 83000, note: '定時決定' }
   ],
   monthlyNotes: {
-    '2024-05': { notifiedAmount: 25202, memo: '' },
+    '2024-05': { notifiedAmount: 25202 },
     '2026-04': { notifiedAmount: 25088, memo: '健保改定後初月' }
   }
 };
@@ -2238,7 +2554,7 @@ pnpm test tests/unit/csv-serialize.test.ts
 `web/src/lib/csv/serialize.ts`:
 
 ```typescript
-import type { AppState } from '$lib/stores/appState';
+import type { AppState } from '$lib/payroll/types';
 import { escapeCell } from './escape';
 
 const BOM = '﻿';
@@ -2384,6 +2700,15 @@ effectiveFrom,stdRemuneration,grossSalary,note
     expect(p.sections.remuneration_history?.rows[0].note).toBe('特別事情, 産育休');
   });
 
+  it('handles quoted values containing newlines (RFC 4180 multiline)', () => {
+    const csv = `[monthly_notes]
+month,notifiedAmount,memo
+2024-05,25202,"line1\nline2\nline3"
+`;
+    const p = parseCsv(csv);
+    expect(p.sections.monthly_notes?.rows[0].memo).toBe('line1\nline2\nline3');
+  });
+
   it('unescapes Formula Injection escape', () => {
     const csv = `[monthly_notes]
 month,notifiedAmount,memo
@@ -2424,48 +2749,55 @@ export interface ParsedCsv {
   sections: Record<string, ParsedSection | undefined>;
 }
 
+/**
+ * RFC 4180 準拠の CSV パーサ。クォート内の改行をフィールド値として扱うため、
+ * 行分割 → 行パーサの 2 段階構成ではなく入力全体を 1 パスで走査する状態機械として実装する。
+ */
 export function parseCsv(input: string): ParsedCsv {
   const text = input.startsWith('﻿') ? input.slice(1) : input;
-  const lines = text.split(/\r?\n/);
+  const records = parseRfc4180(text);
 
-  const headerMeta = { schemaVersion: null as number | null, appVersion: null as string | null, exportedAt: null as string | null };
+  const headerMeta = {
+    schemaVersion: null as number | null,
+    appVersion: null as string | null,
+    exportedAt: null as string | null
+  };
   const sections: Record<string, ParsedSection> = {};
 
   let currentSection: string | null = null;
   let currentHeader: string[] | null = null;
 
-  for (const rawLine of lines) {
-    const line = rawLine;
-    if (line.length === 0) {
-      // empty line separates sections; reset header for next [section]
+  for (const record of records) {
+    // 空行(全フィールドが空文字 1 個)はセクション境界
+    if (record.length === 1 && record[0] === '') {
       currentHeader = null;
       continue;
     }
-    if (line.startsWith('#')) {
-      // header comment: parse schemaVersion and exportedAt
-      const m = line.match(/schemaVersion=(\d+)/);
+    const first = record[0];
+    if (first.startsWith('#')) {
+      const fullLine = record.join(',');
+      const m = fullLine.match(/schemaVersion=(\d+)/);
       if (m) headerMeta.schemaVersion = Number(m[1]);
-      const m2 = line.match(/exportedAt=(\S+)/);
+      const m2 = fullLine.match(/exportedAt=(\S+)/);
       if (m2) headerMeta.exportedAt = m2[1];
-      const m3 = line.match(/^# solo-shaho (\S+)/);
+      const m3 = fullLine.match(/^# solo-shaho (\S+)/);
       if (m3) headerMeta.appVersion = m3[1];
       continue;
     }
-    if (line.startsWith('[') && line.endsWith(']')) {
-      currentSection = line.slice(1, -1);
+    if (first.startsWith('[') && first.endsWith(']') && record.length === 1) {
+      currentSection = first.slice(1, -1);
       sections[currentSection] = { header: [], rows: [] };
       currentHeader = null;
       continue;
     }
     if (currentSection === null) continue;
-    const cells = parseRfc4180Line(line);
     if (currentHeader === null) {
-      currentHeader = cells;
-      sections[currentSection].header = cells;
+      currentHeader = record;
+      sections[currentSection].header = record;
     } else {
       const row: Record<string, string> = {};
       for (let i = 0; i < currentHeader.length; i++) {
-        row[currentHeader[i]] = unescapeCell(cells[i] ?? '');
+        row[currentHeader[i]] = unescapeCell(record[i] ?? '');
       }
       sections[currentSection].rows.push(row);
     }
@@ -2474,44 +2806,55 @@ export function parseCsv(input: string): ParsedCsv {
   return { headerMeta, sections };
 }
 
-function parseRfc4180Line(line: string): string[] {
-  const cells: string[] = [];
+/**
+ * RFC 4180 準拠の CSV を入力全体を 1 パスで走査して records へ分解する。
+ * クォート内の改行はフィールド値として保持される。
+ */
+function parseRfc4180(text: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
   let buf = '';
-  let i = 0;
   let inQuote = false;
-  while (i < line.length) {
-    const c = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
     if (inQuote) {
       if (c === '"') {
-        if (line[i + 1] === '"') {
+        if (text[i + 1] === '"') {
           buf += '"';
-          i += 2;
+          i++;
           continue;
         }
         inQuote = false;
-        i++;
         continue;
       }
       buf += c;
-      i++;
       continue;
     }
     if (c === '"') {
       inQuote = true;
-      i++;
       continue;
     }
     if (c === ',') {
-      cells.push(buf);
+      record.push(buf);
       buf = '';
-      i++;
+      continue;
+    }
+    if (c === '\r') continue; // CRLF の CR は無視
+    if (c === '\n') {
+      record.push(buf);
+      records.push(record);
+      record = [];
+      buf = '';
       continue;
     }
     buf += c;
-    i++;
   }
-  cells.push(buf);
-  return cells;
+  // 末尾改行なしの最終フィールドを取りこぼさない
+  if (buf !== '' || record.length > 0) {
+    record.push(buf);
+    records.push(record);
+  }
+  return records;
 }
 ```
 
@@ -2622,8 +2965,11 @@ pnpm test tests/unit/csv-validate.test.ts
 `web/src/lib/csv/validate.ts`:
 
 ```typescript
-import type { AppState } from '$lib/stores/appState';
-import { CURRENT_SCHEMA_VERSION } from '$lib/stores/appState';
+import {
+  validateAppState,
+  CURRENT_SCHEMA_VERSION,
+  type AppState
+} from '$lib/payroll/types';
 import type { ParsedCsv } from './parse';
 
 export class ImportError extends Error {
@@ -2633,9 +2979,11 @@ export class ImportError extends Error {
   }
 }
 
-const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-
+/**
+ * CSV パース結果を中間オブジェクトに変換した上で、
+ * payroll/types.ts の `validateAppState` で構造検証を行う。
+ * これにより loadFromStorage と validateAndConvert で検証ロジックを共有できる。
+ */
 export function validateAndConvert(parsed: ParsedCsv): AppState {
   if (parsed.headerMeta.schemaVersion === null) {
     throw new ImportError('Missing schemaVersion in header');
@@ -2651,63 +2999,43 @@ export function validateAndConvert(parsed: ParsedCsv): AppState {
     throw new ImportError('Missing [profile] section');
   }
   const profileRow = profileSec.rows[0];
-  const birthDate = profileRow.birthDate ?? '';
-  if (birthDate !== '' && !DATE_RE.test(birthDate)) {
-    throw new ImportError(`Invalid date format in profile.birthDate: ${birthDate}`);
-  }
 
   const remSec = parsed.sections.remuneration_history;
   if (!remSec || remSec.rows.length === 0) {
     throw new ImportError('Missing or empty [remuneration_history]');
   }
-  const remunerationHistory = remSec.rows.map((r, idx) => {
-    if (!DATE_RE.test(r.effectiveFrom)) {
-      throw new ImportError(
-        `Invalid date format in remuneration_history row ${idx + 1}: ${r.effectiveFrom}`
-      );
-    }
-    const std = parseNonNegativeInt(r.stdRemuneration, `remuneration_history row ${idx + 1} stdRemuneration`);
-    const gross = parseNonNegativeInt(r.grossSalary, `remuneration_history row ${idx + 1} grossSalary`);
-    return {
-      effectiveFrom: r.effectiveFrom,
-      stdRemuneration: std,
-      grossSalary: gross,
-      note: r.note ?? ''
-    };
-  });
 
-  const notesSec = parsed.sections.monthly_notes;
-  const monthlyNotes: AppState['monthlyNotes'] = {};
-  if (notesSec) {
-    for (const [idx, r] of notesSec.rows.entries()) {
-      if (!MONTH_RE.test(r.month)) {
-        throw new ImportError(`Invalid month key in monthly_notes row ${idx + 1}: ${r.month}`);
-      }
-      const note: AppState['monthlyNotes'][string] = {};
-      if (r.notifiedAmount !== '') {
-        note.notifiedAmount = parseNonNegativeInt(
-          r.notifiedAmount,
-          `monthly_notes row ${idx + 1} notifiedAmount`
-        );
-      }
-      if (r.memo !== '') note.memo = r.memo;
-      monthlyNotes[r.month] = note;
-    }
-  }
-
-  return {
+  // 中間オブジェクト構築 — 数値・日付・キーの構造検証は validateAppState に委譲
+  const intermediate: unknown = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    profile: { name: profileRow.name ?? '', birthDate: birthDate === '' ? null : birthDate },
-    remunerationHistory,
-    monthlyNotes
+    profile: {
+      name: profileRow.name ?? '',
+      birthDate: profileRow.birthDate === '' ? null : profileRow.birthDate ?? null
+    },
+    remunerationHistory: remSec.rows.map((r) => ({
+      effectiveFrom: r.effectiveFrom ?? '',
+      stdRemuneration: r.stdRemuneration === '' ? -1 : Number(r.stdRemuneration),
+      grossSalary: r.grossSalary === '' ? -1 : Number(r.grossSalary),
+      note: r.note ?? ''
+    })),
+    monthlyNotes: Object.fromEntries(
+      (parsed.sections.monthly_notes?.rows ?? []).map((r) => {
+        const note: { notifiedAmount?: number; memo?: string } = {};
+        if (r.notifiedAmount !== undefined && r.notifiedAmount !== '') {
+          note.notifiedAmount = Number(r.notifiedAmount);
+        }
+        if (r.memo !== undefined && r.memo !== '') note.memo = r.memo;
+        return [r.month ?? '', note];
+      })
+    )
   };
-}
 
-function parseNonNegativeInt(s: string, context: string): number {
-  if (!/^\d+$/.test(s)) {
-    throw new ImportError(`Expected non-negative integer at ${context}, got: ${s}`);
+  try {
+    return validateAppState(intermediate);
+  } catch (e) {
+    // AppStateValidationError を ImportError に統一して、UI で同じハンドリングが可能に
+    throw new ImportError(`CSV validation failed: ${(e as Error).message}`);
   }
-  return Number(s);
 }
 ```
 
@@ -2742,7 +3070,7 @@ import { describe, it, expect } from 'vitest';
 import { serializeAppState } from '$lib/csv/serialize';
 import { parseCsv } from '$lib/csv/parse';
 import { validateAndConvert } from '$lib/csv/validate';
-import type { AppState } from '$lib/stores/appState';
+import type { AppState } from '$lib/payroll/types';
 
 const original: AppState = {
   schemaVersion: 1,
@@ -2752,12 +3080,13 @@ const original: AppState = {
   ],
   monthlyNotes: {
     '2024-05': { notifiedAmount: 25202, memo: '通常月' },
-    '2026-04': { notifiedAmount: 25088, memo: '=cmd|/c calc' }
+    '2026-04': { notifiedAmount: 25088, memo: '=cmd|/c calc' },
+    '2026-05': { notifiedAmount: 25290, memo: '改行を\n含む\nメモ' }
   }
 };
 
 describe('CSV roundtrip', () => {
-  it('serialize → parse → validate restores AppState', () => {
+  it('serialize → parse → validate restores AppState (with newlines, formula injection)', () => {
     const csv = serializeAppState(original, { exportedAt: '2026-04-25T14:30:00+09:00' });
     const restored = validateAndConvert(parseCsv(csv));
     expect(restored.profile).toEqual(original.profile);
@@ -2765,6 +3094,8 @@ describe('CSV roundtrip', () => {
     // Formula Injection 文字列もそのまま復元される(エスケープが対称)
     expect(restored.monthlyNotes['2026-04'].memo).toBe('=cmd|/c calc');
     expect(restored.monthlyNotes['2024-05'].memo).toBe('通常月');
+    // クォート内改行(RFC 4180 multiline)も保持される
+    expect(restored.monthlyNotes['2026-05'].memo).toBe('改行を\n含む\nメモ');
   });
 
   it('Formula Injection 文字列がエクスポート CSV では先頭シングルクォート付き', () => {
@@ -2884,22 +3215,8 @@ git commit -m "feat(ui): tab navigation layout with placeholder pages"
 **Files:**
 - Modify: `web/src/routes/+page.svelte`
 - Create: `web/src/lib/format/numbers.ts`
-- Modify: `web/src/lib/stores/appState.ts` (シングルトンストア export)
 
-- [ ] **Step 1: `web/src/lib/stores/appState.ts` の末尾にシングルトンを追加**
-
-```typescript
-import { browser } from '$app/environment';
-
-let _store: Writable<AppState> | null = null;
-
-/** ブラウザでのみ初期化されるシングルトンの AppState ストア。 */
-export function getAppStateStore(): Writable<AppState> {
-  if (!browser) return writable(createDefaultAppState());
-  if (_store === null) _store = createAppStateStore();
-  return _store;
-}
-```
+- [ ] **Step 1: `getAppStateStore` シングルトンは Task 19 で既に export 済み(本ステップは不要、確認のみ)**
 
 - [ ] **Step 2: `web/src/lib/format/numbers.ts` を作成**
 
@@ -2926,12 +3243,26 @@ export function formatRatePercent(rateX100k: number, fractionDigits = 2): string
 
   const store = getAppStateStore();
 
+  function todayDateString(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  }
+
   function addRemunerationRow() {
+    // 新規行のデフォルト effectiveFrom は当月1日。空文字を入れて
+    // 文字列辞書順比較で常時マッチしてしまう silent な ゼロフォールバックを防ぐ。
     store.update((s) => ({
       ...s,
       remunerationHistory: [
         ...s.remunerationHistory,
-        { effectiveFrom: '', stdRemuneration: 0, grossSalary: 0, note: '' }
+        {
+          effectiveFrom: todayDateString(),
+          stdRemuneration: 0,
+          grossSalary: 0,
+          note: ''
+        }
       ]
     }));
   }
@@ -2947,6 +3278,12 @@ export function formatRatePercent(rateX100k: number, fractionDigits = 2): string
   $: currentY = today.getFullYear();
   $: currentM = today.getMonth() + 1;
   $: kaigoNow = isKaigoApplicable($store.profile.birthDate, currentY, currentM);
+
+  // 履歴に空 effectiveFrom が含まれている場合、計算結果は信頼できない。
+  // バリデーションメッセージで明示する(silent failure 防止)。
+  $: emptyEffectiveCount = $store.remunerationHistory.filter(
+    (r) => r.effectiveFrom === ''
+  ).length;
 </script>
 
 <h2 class="text-2xl font-bold">設定</h2>
@@ -2971,6 +3308,12 @@ export function formatRatePercent(rateX100k: number, fractionDigits = 2): string
     現在 介護該当: <strong>{kaigoNow ? '✅' : '❌'}</strong>
   </p>
 </section>
+
+{#if emptyEffectiveCount > 0}
+  <p class="mt-4 rounded bg-yellow-50 p-3 text-sm text-yellow-800">
+    報酬改定履歴に「適用開始日」が未入力の行が {emptyEffectiveCount} 件あります。月次・履歴タブの計算は信頼できません。
+  </p>
+{/if}
 
 <section class="mt-8">
   <div class="flex items-center justify-between">
@@ -3214,63 +3557,54 @@ git commit -m "feat(ui): monthly tab with full calculation breakdown"
   import { calculateRange } from '$lib/payroll/calculate';
   import { aggregateByCalendarYear } from '$lib/payroll/aggregate';
   import { findApplicableRemuneration } from '$lib/payroll/remuneration';
-  import type { MonthResult, RateEntry, RemunerationEntry } from '$lib/payroll/types';
+  import { EntryNotFoundError } from '$lib/payroll/lookup';
+  import type { MonthResult, RateEntry, YearSummary } from '$lib/payroll/types';
   import ratesData from '$lib/data/rates.json';
 
   const store = getAppStateStore();
   const rateHistory = ratesData.history as RateEntry[];
 
-  const today = new Date();
-  let startYM = '2024-04';
-  let endYM = `${today.getFullYear() + 1}-12`;
-
-  interface RowLabel { year: number; month: number; key: string; std: number }
-  interface YearSummary { year: number; monthCount: number; employeeDeductionTotal: number; employerBurdenTotal: number; payableTotal: number }
   type Row =
-    | { kind: 'month'; label: RowLabel; result: MonthResult }
+    | { kind: 'month'; result: MonthResult; std: number }
     | { kind: 'year'; summary: YearSummary };
 
-  function buildLabels(start: string, end: string, history: readonly RemunerationEntry[]): RowLabel[] {
-    const labels: RowLabel[] = [];
-    let [y, m] = start.split('-').map(Number);
-    const [ey, em] = end.split('-').map(Number);
-    while (y < ey || (y === ey && m <= em)) {
-      const key = `${y}-${String(m).padStart(2, '0')}`;
-      let std = 0;
-      try {
-        std = findApplicableRemuneration(key, history).stdRemuneration;
-      } catch {
-        std = 0;
-      }
-      labels.push({ year: y, month: m, key, std });
-      m++;
-      if (m === 13) { m = 1; y++; }
-    }
-    return labels;
+  // ユーザー指定の表示範囲を、報酬改定履歴に基づく適用可能範囲にクランプする。
+  // 履歴より古い月を含めた瞬間に EntryNotFoundError が出るのを防ぎつつ、
+  // フォールバックでゼロ値を捏造することもしない(「クランプして表示しない」を選択)。
+  function effectiveStartYM(userStart: string, history: readonly { effectiveFrom: string }[]): string | null {
+    if (history.length === 0) return null;
+    const oldest = [...history].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
+    const oldestYM = oldest.effectiveFrom.slice(0, 7);
+    return userStart < oldestYM ? oldestYM : userStart;
   }
 
+  let userStartYM = '2024-04';
+  let endYM = `${new Date().getFullYear() + 1}-12`;
+
   $: hasRem = $store.remunerationHistory.length > 0;
-  $: months = hasRem
-    ? calculateRange(startYM, endYM, {
+  $: clampedStart = effectiveStartYM(userStartYM, $store.remunerationHistory);
+  $: months = hasRem && clampedStart !== null
+    ? calculateRange(clampedStart, endYM, {
         birthDate: $store.profile.birthDate,
         remunerationHistory: $store.remunerationHistory,
         rateHistory
       })
     : [];
-  $: monthLabels = buildLabels(startYM, endYM, $store.remunerationHistory);
-  $: tagged = months.map((r, i) => ({ year: monthLabels[i].year, result: r }));
-  $: yearSummaries = aggregateByCalendarYear(tagged);
+  $: yearSummaries = aggregateByCalendarYear(months);
   $: rows = (() => {
     const out: Row[] = [];
     let curYear: number | null = null;
-    for (let i = 0; i < months.length; i++) {
-      const lab = monthLabels[i];
-      if (curYear !== null && curYear !== lab.year) {
+    for (const r of months) {
+      if (curYear !== null && curYear !== r.year) {
         const sum = yearSummaries.find((s) => s.year === curYear);
         if (sum) out.push({ kind: 'year', summary: sum });
       }
-      out.push({ kind: 'month', label: lab, result: months[i] });
-      curYear = lab.year;
+      // findApplicableRemuneration の throw は現時点で発生しない契約
+      // (clampedStart で履歴範囲外を排除済み)。万一 throw した場合は
+      // 上位の reactive ブロックでそのまま伝播させる(ユーザーに表示する)。
+      const std = findApplicableRemuneration(`${r.year}-${String(r.month).padStart(2, '0')}`, $store.remunerationHistory).stdRemuneration;
+      out.push({ kind: 'month', result: r, std });
+      curYear = r.year;
     }
     if (curYear !== null) {
       const sum = yearSummaries.find((s) => s.year === curYear);
@@ -3278,14 +3612,23 @@ git commit -m "feat(ui): monthly tab with full calculation breakdown"
     }
     return out;
   })();
+
+  // 表示範囲のクランプをユーザーに開示する(silent failure 防止)
+  $: rangeClamped = clampedStart !== null && clampedStart !== userStartYM;
 </script>
 
 <h2 class="text-2xl font-bold">履歴</h2>
 
 <div class="mt-4 flex items-center gap-3 text-sm">
-  <label>開始: <input type="month" bind:value={startYM} class="rounded border px-2 py-1" /></label>
+  <label>開始: <input type="month" bind:value={userStartYM} class="rounded border px-2 py-1" /></label>
   <label>終了: <input type="month" bind:value={endYM} class="rounded border px-2 py-1" /></label>
 </div>
+
+{#if rangeClamped}
+  <p class="mt-2 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+    指定の開始月 {userStartYM} は報酬改定履歴の最古エントリより古いため、{clampedStart} から表示しています。
+  </p>
+{/if}
 
 {#if !hasRem}
   <p class="mt-6 rounded bg-yellow-50 p-3 text-sm">設定タブで報酬改定履歴を登録してください。</p>
@@ -3309,21 +3652,23 @@ git commit -m "feat(ui): monthly tab with full calculation breakdown"
         {#each rows as row}
           {#if row.kind === 'month'}
             <tr class="border-b">
-              <td class="px-2 py-1 text-right">{row.label.year}/{row.label.month}</td>
-              <td class="px-2 py-1 text-right">{formatYen(row.label.std)}</td>
+              <td class="px-2 py-1 text-right">{row.result.year}/{row.result.month}</td>
+              <td class="px-2 py-1 text-right">{formatYen(row.std)}</td>
               <td class="px-2 py-1 text-right">{row.result.isKaigoApplicable ? '✅' : '─'}</td>
               <td class="px-2 py-1 text-right">{formatYen(row.result.employeeDeductionTotal)}</td>
               <td class="px-2 py-1 text-right">{formatYen(row.result.employerBurdenTotal)}</td>
               <td class="px-2 py-1 text-right">{formatYen(row.result.payableTotal)}</td>
               <td class="px-2 py-1 text-right">{formatYen(row.result.netSalary)}</td>
+              {@const monthKey = `${row.result.year}-${String(row.result.month).padStart(2, '0')}`}
+              {@const notified = $store.monthlyNotes[monthKey]?.notifiedAmount}
               <td class="px-2 py-1 text-right">
-                {#if $store.monthlyNotes[row.label.key]?.notifiedAmount !== undefined}
-                  {formatYen($store.monthlyNotes[row.label.key].notifiedAmount ?? 0)}
+                {#if notified !== undefined}
+                  {formatYen(notified)}
                 {:else}─{/if}
               </td>
               <td class="px-2 py-1 text-right">
-                {#if $store.monthlyNotes[row.label.key]?.notifiedAmount !== undefined}
-                  {formatYen(row.result.payableTotal - ($store.monthlyNotes[row.label.key].notifiedAmount ?? 0))}
+                {#if notified !== undefined}
+                  {formatYen(row.result.payableTotal - notified)}
                 {:else}─{/if}
               </td>
             </tr>
@@ -3379,10 +3724,12 @@ git commit -m "feat(ui): history tab with monthly grid + annual aggregation rows
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
-  import { getAppStateStore, createDefaultAppState } from '$lib/stores/appState';
+  import { getAppStateStore } from '$lib/stores/appState';
+  import { createDefaultAppState } from '$lib/payroll/types';
+  import { persistenceErrorStore, clearPersistenceError } from '$lib/stores/persistence';
   import { serializeAppState } from '$lib/csv/serialize';
   import { parseCsv } from '$lib/csv/parse';
-  import { validateAndConvert, ImportError } from '$lib/csv/validate';
+  import { validateAndConvert } from '$lib/csv/validate';
 
   const tabs = [
     { href: '/', label: '設定' },
@@ -3410,15 +3757,35 @@ git commit -m "feat(ui): history tab with monthly grid + annual aggregation rows
   async function importCsv() {
     const file = fileInput.files?.[0];
     if (!file) return;
-    const text = await file.text();
+
+    // ファイル読込・パース・バリデーションの 3 段階すべてでエラーをユーザーに伝える
+    let text: string;
     try {
-      const next = validateAndConvert(parseCsv(text));
-      if (!confirm('既存データを上書きします。本当に取り込みますか?')) return;
-      store.set(next);
-      importMessage = '取り込み成功';
+      text = await file.text();
     } catch (e) {
-      importMessage = `取り込み失敗: ${(e as Error).message}`;
+      importMessage = `ファイル読み取り失敗: ${(e as Error).message}`;
+      fileInput.value = '';
+      menuOpen = false;
+      return;
     }
+
+    let next;
+    try {
+      next = validateAndConvert(parseCsv(text));
+    } catch (e) {
+      importMessage = `CSV パース/バリデーション失敗: ${(e as Error).message}`;
+      fileInput.value = '';
+      menuOpen = false;
+      return;
+    }
+
+    if (!confirm('既存データを上書きします。本当に取り込みますか?')) {
+      fileInput.value = '';
+      menuOpen = false;
+      return;
+    }
+    store.set(next);
+    importMessage = '取り込み成功';
     fileInput.value = '';
     menuOpen = false;
   }
@@ -3464,6 +3831,13 @@ git commit -m "feat(ui): history tab with monthly grid + annual aggregation rows
     </nav>
   </header>
   <main class="container mx-auto px-4 py-6">
+    {#if $persistenceErrorStore !== null}
+      <div class="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+        <strong>データの保存に失敗しました</strong>: {$persistenceErrorStore.message}<br />
+        ストレージ容量超過などの可能性があります。CSV エクスポートでバックアップを取り、ブラウザの保存データを整理してください。
+        <button class="ml-2 underline" on:click={clearPersistenceError}>閉じる</button>
+      </div>
+    {/if}
     {#if importMessage !== ''}
       <p class="mb-4 rounded bg-blue-50 p-2 text-sm">{importMessage}</p>
     {/if}
