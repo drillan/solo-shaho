@@ -2,8 +2,15 @@
 
 - **作成日**: 2026-04-25
 - **対象**: `solo-shaho` リポジトリの社会保険料計算 Excel を Web アプリ化
-- **ステータス**: ブレインストーミング完了・設計承認待ち
+- **ステータス**: ブレインストーミング完了・hachimoku レビュー反映済み・設計承認待ち
 - **配信先**: Cloudflare Workers Static Assets(無料枠)
+
+### 改訂履歴
+
+| 日付 | 改訂内容 |
+|---|---|
+| 2026-04-25 | 初版作成(Cloudflare Workers Static Assets + SvelteKit) |
+| 2026-04-25 | hachimoku レビュー反映: 層分離(`calculateRange`)、DRY (`findApplicableEntry`)、`MonthlyNote.month` 削除、CSV Formula Injection 対策、CSP 等セキュリティヘッダ規定、`nodejs_compat` 削除、月次タブ/CSV 例の整合、`isKaigoApplicable` の月意味明記、`appliedKenpoRate` 算出規則明記、未知列ルール単純化 |
 
 ## 0. 背景と目的
 
@@ -58,17 +65,17 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "solo-shaho",
   "compatibility_date": "2026-04-25",
-  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".svelte-kit/cloudflare"
-  },
-  "observability": {
-    "enabled": true
   }
 }
 ```
 
-純静的サイトのため `main` エントリは不要。将来 API を生やす場合は `main: ".svelte-kit/cloudflare/_worker.js"` を追加する。
+純静的サイトのため、Worker コードを必要とする以下の設定は **意図的に省略** している:
+
+- `main` エントリ: Worker スクリプト不在のため不要
+- `compatibility_flags: ["nodejs_compat"]`: Worker のサーバ実行時フラグなので、静的アセット配信のみの現状では何も有効化しない。将来 `main` を導入する際に、その Worker が実際に必要とするフラグだけを加える
+- `observability.enabled`: Worker コードがない現状では収集対象がほぼ無いため、`main` 導入時に有効化する
 
 **`web/svelte.config.js`**:
 
@@ -88,6 +95,28 @@ export default {
 export const prerender = true;
 export const ssr = false;
 ```
+
+### セキュリティヘッダ(`web/static/_headers`)
+
+個人データ(氏名・生年月日・標準報酬月額・給与額面)を localStorage に保持する設計上、**単一の XSS で全データが漏洩する** リスクを軽減するため、CSP を含む防御層を必須とする。Cloudflare Workers Static Assets は Cloudflare Pages と同形式の `_headers` ファイルをサポートする。
+
+```
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
+  X-Content-Type-Options: nosniff
+```
+
+**設計判断:**
+
+- `style-src 'self' 'unsafe-inline'`: SvelteKit のコンポーネントスコープスタイルが inline `<style>` を出力するため `'unsafe-inline'` が必要(ビルド出力検証で必要なら nonce 方式へ移行)
+- `connect-src 'self'`: 外部 API へのリクエストを禁止することで、万一の XSS 時のデータ持ち出しを遮断
+- `frame-ancestors 'none'`: clickjacking 対策(印刷スタイル使用上の支障なし)
+- `Permissions-Policy`: 不要な機能の権限要求を全拒否し攻撃面を縮小
+
+**受け入れ基準への追加**: `curl -I https://<deployed-url>/` で上記ヘッダ全てが返ることを確認(セクション 6 のチェックリストにも反映)。
 
 ### CI/CD
 
@@ -130,15 +159,16 @@ solo-shaho/
 ├── web/                        # 新規 — SvelteKit + Workers Assets
 │   ├── src/
 │   │   ├── lib/
-│   │   │   ├── payroll/        # 計算エンジン (純粋関数群)
+│   │   │   ├── payroll/        # 計算エンジン (純粋関数群・AppState 非依存)
 │   │   │   │   ├── types.ts
-│   │   │   │   ├── rates.ts
-│   │   │   │   ├── remuneration.ts
+│   │   │   │   ├── lookup.ts            # 共通: 効力発生日順での XLOOKUP 相当
+│   │   │   │   ├── rates.ts             # lookup.ts のラッパー(料率専用エラー型)
+│   │   │   │   ├── remuneration.ts      # lookup.ts のラッパー(報酬専用エラー型)
 │   │   │   │   ├── kaigo.ts
 │   │   │   │   ├── round.ts
 │   │   │   │   └── calculate.ts
-│   │   │   ├── stores/                 # Svelte stores + localStorage
-│   │   │   ├── csv/                    # CSV import/export
+│   │   │   ├── stores/                 # Svelte stores + localStorage (AppState を所有)
+│   │   │   ├── csv/                    # CSV import/export + formula injection 対策
 │   │   │   └── data/
 │   │   │       └── rates.json          # 料率マスタ (唯一の真実)
 │   │   ├── routes/
@@ -152,7 +182,9 @@ solo-shaho/
 │   ├── tests/
 │   │   ├── fixtures/                   # Excel から抽出した期待値 (gitignore)
 │   │   └── unit/
-│   ├── static/                         # favicon 等
+│   ├── static/
+│   │   ├── _headers                    # CSP 等のセキュリティヘッダ
+│   │   └── favicon.ico
 │   ├── wrangler.jsonc
 │   ├── svelte.config.js
 │   ├── vite.config.ts
@@ -196,12 +228,16 @@ interface RemunerationEntry {
 }
 
 interface MonthlyNote {
-  month: string;                    // "YYYY-MM" (= 納付月)
+  // month は AppState.monthlyNotes の Record キーで一意に表現するため、
+  // ここでは保持しない(キー == 中身 の二重表現を排除)。
+  // 配列が必要な場面では Object.entries で `{month, ...}` に変換する。
   notifiedAmount?: number;          // 協会けんぽ通知額(検算用)
   memo?: string;
   // 将来: incomeTax?, withholdingBasis?, dependents? を追加可能
 }
 ```
+
+**不変条件:** `monthlyNotes` のキーは必ず `/^\d{4}-(0[1-9]|1[0-2])$/`(納付月の `YYYY-MM`)を満たす。CSV インポート時はキーをバリデーションして弾く(セクション 5 参照)。
 
 ### 永続化戦略
 
@@ -329,6 +365,9 @@ export interface MonthInput {
 export interface MonthResult {
   age: number | null;
   isKaigoApplicable: boolean;
+  // 適用済み健保料率(1/10000 単位整数)
+  // = kenpoBase + (isKaigoApplicable ? kaigo : 0)
+  // UI 層は (appliedKenpoRate / 100).toFixed(2) + '%' で表示する
   appliedKenpoRate: number;
   // 全額(整数円)
   kenpoTotal: number;
@@ -352,34 +391,75 @@ export interface MonthResult {
 }
 ```
 
+**月の意味について(納付月ベースで統一):** `MonthInput.year`/`month`、`isKaigoApplicable(year, month)`、`MonthlyNote` のキーはすべて **納付月** で解釈する。Excel の月次計算シートが納付月ベースで全列を参照する仕様と同一であり、Excel との bit-perfect 一致を維持するための強制的制約。
+
 ### 主要関数 API
 
 ```typescript
-// rates.ts
-findApplicableRate(yearMonth: string, history: RateEntry[]): RateEntry
-// XLOOKUP 相当: 該当なしは Error throw(フォールバック禁止)
+// lookup.ts (共通ユーティリティ・DRY)
+// effectiveFrom <= yearMonth-01 を満たす最新エントリを返す。
+// 該当なしは EntryNotFoundError を throw(フォールバック禁止)。
+findApplicableEntry<T extends { effectiveFrom: string }>(
+  yearMonth: string,             // "YYYY-MM"
+  history: readonly T[],
+  errorContext: string,          // エラーメッセージ用("料率" / "報酬" 等)
+): T;
 
-// remuneration.ts
-findApplicableRemuneration(yearMonth: string, history: RemunerationEntry[]): RemunerationEntry
+// rates.ts (薄いラッパー)
+findApplicableRate(yearMonth: string, history: readonly RateEntry[]): RateEntry;
+// = findApplicableEntry(yearMonth, history, "料率")
+
+// remuneration.ts (薄いラッパー)
+findApplicableRemuneration(
+  yearMonth: string,
+  history: readonly RemunerationEntry[],
+): RemunerationEntry;
+// = findApplicableEntry(yearMonth, history, "報酬")
 
 // kaigo.ts
-isKaigoApplicable(birthDate: string | null, year: number, month: number): boolean
-// 40歳誕生日の前日 ≦ 当月末日 < 65歳誕生日の前日
-calculateAge(birthDate: string, year: number, month: number): number
+// 引数 year/month は納付月として解釈する(Excel と同じ)。
+// 該当判定: 40歳誕生日の前日 ≦ 当月末日 < 65歳誕生日の前日
+// birthDate が null の場合は false を返す(Excel の挙動と同じ)
+isKaigoApplicable(
+  birthDate: string | null,
+  year: number,
+  month: number,
+): boolean;
+
+calculateAge(birthDate: string, year: number, month: number): number;
 
 // round.ts
-splitHalfEmployee(totalSen: number): number
-// = 50銭以下切捨て・50銭超切上げ
-// totalSen は銭単位の整数
+splitHalfEmployee(totalSen: number): number;
+// 50銭以下切捨て・50銭超切上げ。totalSen は銭単位の整数
 
-splitHalfEmployer(totalSen: number, employee: number): number
-// = ROUNDDOWN(total, 0) - employee  (残額方式)
+splitHalfEmployer(totalSen: number, employee: number): number;
+// = ROUNDDOWN(total, 0) - employee (残額方式)
 
 // calculate.ts
-calculateMonth(input: MonthInput): MonthResult
-calculateRange(start: string, end: string, state: AppState, rates: RateEntry[]): MonthResult[]
-aggregateByCalendarYear(results: MonthResult[]): YearSummary[]
+calculateMonth(input: MonthInput): MonthResult;
+
+// 計算エンジンは AppState を知らない(層分離)。
+// UI ストア層が AppState から必要なドメインデータを抽出して渡す。
+calculateRange(
+  start: string,                 // "YYYY-MM" 含む
+  end: string,                   // "YYYY-MM" 含む
+  params: {
+    birthDate: string | null;
+    remunerationHistory: readonly RemunerationEntry[];
+    rateHistory: readonly RateEntry[];
+  },
+): MonthResult[];
+
+aggregateByCalendarYear(results: readonly MonthResult[]): YearSummary[];
 ```
+
+**層分離の意図:**
+
+`payroll/` モジュールは `AppState` 等の永続化層型を import しない純粋関数群とする。これにより:
+
+- 単体テストで `AppState` を組み立てる必要がなく、ドメインデータだけで網羅的に検証可能
+- `AppState` のスキーマ変更(将来 Phase 2 で v2 へ)が `payroll/` の関数シグネチャに伝播しない
+- UI ストア層の責務は「`AppState` → ドメインデータの抽出」「ドメインデータ → 計算結果」の合成のみとなり、責務が明確
 
 ### 整数演算
 
@@ -428,18 +508,19 @@ name,birthDate
 [remuneration_history]
 effectiveFrom,stdRemuneration,grossSalary,note
 2024-04-01,88000,83000,定時決定
-2025-04-01,88000,85000,定時決定
 
 [monthly_notes]
 month,notifiedAmount,memo
-2024-05,16834,
+2024-05,25202,
 2026-04,25088,健保改定後初月
 
 # (オプション) 計算結果スナップショット — import 時は無視
 [calculated_snapshot]
 year,month,stdRemuneration,kenpoEmployee,koseiEmployee,shienEmployee,employeeDeductionTotal,employerBurdenTotal,payableTotal,netSalary,notifiedAmount,diff
-2024,05,88000,4356,8052,0,12408,12724,25132,70592,16834,8298
+2024,05,88000,4391,8052,0,12443,12759,25202,70557,25202,0
 ```
+
+例示データは [タブ 2: 月次](#タブ-2-月次-monthly) のモックアップと整合させている(同一の 2024-04 報酬改定 / 標準報酬月額 88,000 / 給与額面 83,000 を共有)。
 
 ### 設計の根拠
 
@@ -452,14 +533,39 @@ year,month,stdRemuneration,kenpoEmployee,koseiEmployee,shienEmployee,employeeDed
 | 日付は ISO 8601 | 国際標準、ソート可能 |
 | 金額は raw integer | パース簡素化 |
 
-### 将来拡張(Phase 2)
+### CSV Formula Injection 対策(CWE-1236)
+
+エクスポートされた CSV はユーザー本人以外の環境(税理士の Excel・Google Sheets 等)で開かれる前提があるため、自由記述フィールド (`memo` / `note` / `name`) を介した数式インジェクション攻撃を防ぐ必要がある。
+
+**エクスポート時の規約:**
+
+1. RFC 4180 準拠のクォート処理 — 値内に `,` `"` `\n` `\r` のいずれかを含む場合はダブルクォートで囲み、内部の `"` は `""` にエスケープする
+2. **危険文字エスケープ** — 任意フィールド (`memo` / `note` / `name`) のセル先頭が以下のいずれかの場合、先頭に単一引用符 `'` を付与してリテラル化する:
+   - `=` `+` `-` `@` `\t` (TAB) `\r` (CR)
+3. 数値・日付フィールドは入力時バリデーションで上記文字を含み得ないため、エスケープ対象外
+
+**例:** `memo = "=cmd|'/c calc'!A1"` → CSV 出力時 `"'=cmd|'/c calc'!A1"` (LibreOffice/Excel/Sheets で「文字列」として扱われる)
+
+**インポート時の規約:**
+
+1. セル先頭が危険文字で始まる値を検出した場合、警告ログを出して **エスケープ済みとして続行**(攻撃者が悪意を持って `=...` を残しても、自分のブラウザ内に閉じる前提)
+2. ただし起点となるセル先頭の `'` (シングルクォート)は剥がしてから保存(エクスポート/インポートの往復で `'` が増えないようにする)
+
+### 将来拡張(Phase 2)— 未知列の取り扱い
+
+CSV スキーマは追記方式で破壊的変更なしに拡張可能:
 
 ```csv
 [monthly_notes]
-month,notifiedAmount,memo,incomeTax,withholdingBasis,dependents
+notifiedAmount,memo,incomeTax,withholdingBasis,dependents
 ```
 
-未知の列はインポート時に警告ログ + 無視で続行。計算結果に影響する列なら Error。
+**インポート時の単一ルール:**
+
+- `schemaVersion` が現行と一致 → 未知列は警告ログ出力後、**無視して続行**(計算には現行スキーマの列のみを使用)
+- `schemaVersion` が現行と不一致 → 警告モーダルを表示し、ユーザーが「続行」を選んだ場合のみ上記と同様の挙動
+
+**「計算結果に影響する列」かどうかの動的判別はしない。** schemaVersion 単独で互換性の境界を表現する。Phase 2 で `incomeTax` 等を追加する際は schemaVersion を v2 に上げ、v1 ファイルからの互換読込パスを別途実装する。
 
 ### インポート時バリデーション
 
@@ -470,6 +576,8 @@ month,notifiedAmount,memo,incomeTax,withholdingBasis,dependents
 | remuneration_history が 1 行以上 | エラー |
 | 日付フォーマット(YYYY-MM-DD) | エラー、行番号表示 |
 | 数値が非負整数 | エラー、行番号表示 |
+| `monthly_notes` のキー(`YYYY-MM`)正規表現一致 | エラー、行番号表示 |
+| セル先頭の式文字 (`=` `+` `-` `@` TAB CR) を検出 | 警告ログ後、エスケープ済みとして続行 |
 | 既存データとのマージ vs 上書き | インポート前にモーダルで選択 |
 
 ---
@@ -545,8 +653,10 @@ Excel fixture が手元にある状態で実装を進めるため、「Excel と
 - [ ] `pnpm typecheck` `pnpm lint` がエラーゼロ
 - [ ] 設定/月次/履歴の 3 タブが操作可能
 - [ ] CSV エクスポート → クリア → インポートでデータが完全復元
+- [ ] CSV Formula Injection の単体テストが通過(`memo = "=cmd"` がエクスポート時にエスケープされ、再インポートで `=cmd` 文字列として保持)
 - [ ] localStorage 破損時のエラー表示が正しく動作
 - [ ] Cloudflare Workers にデプロイ済み、URL でアクセス可能
+- [ ] `curl -I https://<deployed-url>/` で `Content-Security-Policy` `X-Frame-Options: DENY` `Referrer-Policy: no-referrer` `Permissions-Policy` `X-Content-Type-Options: nosniff` の全ヘッダが返る
 - [ ] README に「個人データはブラウザ内に閉じる」旨を記載
 
 ---
