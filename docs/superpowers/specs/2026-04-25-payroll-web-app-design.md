@@ -12,6 +12,7 @@
 | 2026-04-25 | 初版作成(Cloudflare Workers Static Assets + SvelteKit) |
 | 2026-04-25 | hachimoku レビュー反映: 層分離(`calculateRange`)、DRY (`findApplicableEntry`)、`MonthlyNote.month` 削除、CSV Formula Injection 対策、CSP 等セキュリティヘッダ規定、`nodejs_compat` 削除、月次タブ/CSV 例の整合、`isKaigoApplicable` の月意味明記、`appliedKenpoRate` 算出規則明記、未知列ルール単純化 |
 | 2026-04-25 | 料率表現を 1/10000 → 1/100,000 整数に変更(歴史的料率 `kosei=0.17828` 等の 5 桁小数を整数化するため)。`appliedKenpoRate` 表示変換も同時更新 |
+| 2026-04-25 | hachimoku レビュー 第二弾反映: `MonthResult` に `year/month` 追加(並列配列パターン排除)、`AppState` を `payroll/types.ts` のドメイン型に移し csv→stores の層方向逆転を解消、`loadFromStorage` と `validateAndConvert` で構造バリデータを共有、各入口での silent failure を排除する方針を明記 |
 
 ## 0. 背景と目的
 
@@ -160,16 +161,17 @@ solo-shaho/
 ├── web/                        # 新規 — SvelteKit + Workers Assets
 │   ├── src/
 │   │   ├── lib/
-│   │   │   ├── payroll/        # 計算エンジン (純粋関数群・AppState 非依存)
-│   │   │   │   ├── types.ts
+│   │   │   ├── payroll/        # 計算エンジン (純粋関数群・stores 非依存)
+│   │   │   │   ├── types.ts             # ドメイン型(AppState 含む)+ 既存値検証関数
 │   │   │   │   ├── lookup.ts            # 共通: 効力発生日順での XLOOKUP 相当
 │   │   │   │   ├── rates.ts             # lookup.ts のラッパー(料率専用エラー型)
 │   │   │   │   ├── remuneration.ts      # lookup.ts のラッパー(報酬専用エラー型)
 │   │   │   │   ├── kaigo.ts
 │   │   │   │   ├── round.ts
-│   │   │   │   └── calculate.ts
-│   │   │   ├── stores/                 # Svelte stores + localStorage (AppState を所有)
-│   │   │   ├── csv/                    # CSV import/export + formula injection 対策
+│   │   │   │   ├── calculate.ts
+│   │   │   │   └── aggregate.ts
+│   │   │   ├── stores/                 # Svelte stores + localStorage(types.ts のドメイン型を使用)
+│   │   │   ├── csv/                    # CSV import/export(types.ts のドメイン型を使用)
 │   │   │   └── data/
 │   │   │       └── rates.json          # 料率マスタ (唯一の真実)
 │   │   ├── routes/
@@ -366,6 +368,10 @@ export interface MonthInput {
 }
 
 export interface MonthResult {
+  // 月の同一性を結果自身に保持(並列配列パターンを排除)。
+  // calculateMonth/calculateRange が MonthInput.year/month をそのまま埋め込む。
+  year: number;
+  month: number;
   age: number | null;
   isKaigoApplicable: boolean;
   // 適用済み健保料率(1/100,000 単位整数)
@@ -454,15 +460,28 @@ calculateRange(
 ): MonthResult[];
 
 aggregateByCalendarYear(results: readonly MonthResult[]): YearSummary[];
+// MonthResult が year を内包するため、別途 (year, result) タプルを組む必要なし。
 ```
 
 **層分離の意図:**
 
-`payroll/` モジュールは `AppState` 等の永続化層型を import しない純粋関数群とする。これにより:
+`payroll/` モジュールは `stores/`(Svelte store 機構・localStorage 永続化)に依存しない純粋関数群とする。`AppState` などのドメイン型自体は `payroll/types.ts` に置き、`stores/` と `csv/` の両方が `payroll/types.ts` から import する形にする。
 
-- 単体テストで `AppState` を組み立てる必要がなく、ドメインデータだけで網羅的に検証可能
-- `AppState` のスキーマ変更(将来 Phase 2 で v2 へ)が `payroll/` の関数シグネチャに伝播しない
-- UI ストア層の責務は「`AppState` → ドメインデータの抽出」「ドメインデータ → 計算結果」の合成のみとなり、責務が明確
+依存方向:
+
+```
+stores/  ──┐
+           ├─→  payroll/types.ts  ←─  data/rates.json
+csv/    ──┤
+           └─→  payroll/{lookup,rates,...,calculate}
+```
+
+これにより:
+
+- 単体テストで `AppState` を組み立てる必要がなく、`payroll/calculate` 等はドメインデータだけで網羅的に検証可能
+- `csv/` から `stores/` への依存(`stores → csv → stores` の概念上の循環)が排除される
+- UI ストア層の責務は「`AppState` ⇄ localStorage」「ドメインデータ → 計算結果」の合成のみとなり、責務が明確
+- `loadFromStorage` と `validateAndConvert` (CSV import) で同じバリデータを共有でき、入口の検証強度が非対称にならない
 
 ### 整数演算
 
