@@ -68,3 +68,41 @@ describe('unescapeCell — シングルクォート剥がし', () => {
 		expect(unescapeCell("'foo")).toBe("'foo");
 	});
 });
+
+/**
+ * Bijection の網羅検証。
+ * escape は CSV クォート ("...") を含めて出力するので、roundTrip は
+ * 「クォート除去 + RFC 4180 のダブルクォート復元」をシミュレートしてから unescape する。
+ */
+function roundTrip(original: string): string {
+	const escaped = escapeCell(original);
+	const inner =
+		escaped.startsWith('"') && escaped.endsWith('"')
+			? escaped.slice(1, -1).replace(/""/g, '"')
+			: escaped;
+	return unescapeCell(inner);
+}
+
+describe('escape ⇄ unescape bijection (任意個数の apostrophe + formula prefix)', () => {
+	const formulaChars = ['=', '+', '-', '@', '\t', '\r'] as const;
+	for (const apos of [0, 1, 2, 3, 4]) {
+		for (const c of formulaChars) {
+			const input = "'".repeat(apos) + c + 'foo';
+			const label = JSON.stringify(input);
+			it(`${label} を完全復元する`, () => {
+				expect(roundTrip(input)).toBe(input);
+			});
+		}
+	}
+
+	it('apostrophe のみで formula が無い値は加工されない', () => {
+		expect(roundTrip("'")).toBe("'");
+		expect(roundTrip("''")).toBe("''");
+		expect(roundTrip("'''foo")).toBe("'''foo");
+	});
+
+	it('formula のみ・apostrophe のみのエッジケースも復元', () => {
+		expect(roundTrip('=')).toBe('=');
+		expect(roundTrip('')).toBe('');
+	});
+});

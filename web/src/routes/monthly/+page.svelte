@@ -54,14 +54,42 @@
 	});
 
 	let note = $derived($store.monthlyNotes[ym] ?? {});
-	function saveNote(field: 'notifiedAmount' | 'memo', value: number | string) {
+	let noteError = $state<string | null>(null);
+
+	function saveMemo(value: string) {
+		noteError = null;
 		store.update((s) => ({
 			...s,
 			monthlyNotes: {
 				...s.monthlyNotes,
-				[ym]: { ...(s.monthlyNotes[ym] ?? {}), [field]: value }
+				[ym]: { ...(s.monthlyNotes[ym] ?? {}), memo: value }
 			}
 		}));
+	}
+
+	/**
+	 * 通知額入力ハンドラ。
+	 * - 空文字 → notifiedAmount プロパティを削除(未入力に戻す)。Number('') === 0 として
+	 *   silent に保存する fallback を排除する。
+	 * - 非負整数文字列 → number に変換して保存。
+	 * - それ以外(NaN、負数、小数等) → noteError に格納してユーザーへ表示し、ストアは更新しない。
+	 */
+	function saveNotifiedAmount(raw: string) {
+		store.update((s) => {
+			const next = { ...(s.monthlyNotes[ym] ?? {}) };
+			if (raw === '') {
+				delete next.notifiedAmount;
+				noteError = null;
+				return { ...s, monthlyNotes: { ...s.monthlyNotes, [ym]: next } };
+			}
+			if (!/^\d+$/.test(raw)) {
+				noteError = `通知額は 0 以上の整数で入力してください(入力: ${raw})`;
+				return s;
+			}
+			next.notifiedAmount = Number(raw);
+			noteError = null;
+			return { ...s, monthlyNotes: { ...s.monthlyNotes, [ym]: next } };
+		});
 	}
 </script>
 
@@ -174,7 +202,8 @@
 					type="number"
 					min="0"
 					value={note.notifiedAmount ?? ''}
-					onchange={(e) => saveNote('notifiedAmount', Number((e.target as HTMLInputElement).value))}
+					step="1"
+					onchange={(e) => saveNotifiedAmount((e.target as HTMLInputElement).value)}
 					class="w-32 rounded border px-2 py-0.5 text-right"
 				/>
 			</label>
@@ -182,11 +211,14 @@
 				<span>差分: {formatYen(result.result.payableTotal - note.notifiedAmount)}</span>
 			{/if}
 		</div>
+		{#if noteError !== null}
+			<p class="mt-2 rounded bg-red-50 p-2 text-sm text-red-700">{noteError}</p>
+		{/if}
 		<label class="mt-3 block text-sm">
 			メモ
 			<textarea
 				bind:value={note.memo}
-				onchange={(e) => saveNote('memo', (e.target as HTMLTextAreaElement).value)}
+				onchange={(e) => saveMemo((e.target as HTMLTextAreaElement).value)}
 				rows="2"
 				class="mt-1 w-full rounded border px-2 py-1"
 			></textarea>

@@ -3,7 +3,7 @@
 個人データを含むため出力ファイルは gitignore 対象。
 """
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -68,7 +68,7 @@ def main() -> None:
     OUTPUT.write_text(
         json.dumps(
             {
-                "extractedAt": __import__("datetime").datetime.now().isoformat(),
+                "extractedAt": datetime.now().isoformat(),
                 "sourceFile": str(EXCEL.relative_to(ROOT)),
                 "birthDate": birth,
                 "cases": cases,

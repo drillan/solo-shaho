@@ -3,18 +3,25 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { calculateMonth } from '$lib/payroll/calculate';
 import { findApplicableRate } from '$lib/payroll/rates';
-import type { RateEntry } from '$lib/payroll/types';
+import { validateRateHistory, type MonthResult } from '$lib/payroll/types';
 import ratesData from '$lib/data/rates.json';
 
 const SNAPSHOT_PATH = resolve(__dirname, 'excel-snapshot.json');
 const SKIP = !existsSync(SNAPSHOT_PATH);
-const rateHistory = ratesData.history as RateEntry[];
+const rateHistory = validateRateHistory(ratesData.history);
+
+/** MonthResult のうち Excel と突合可能な数値・真偽値フィールドのみを許容する。 */
+type SnapshotExpectedKey = {
+	[K in keyof MonthResult]: MonthResult[K] extends number | boolean ? K : never;
+}[keyof MonthResult];
 
 interface SnapshotCase {
 	year: number;
 	month: number;
 	input: { stdRemuneration: number; grossSalary: number; birthDate: string };
-	expected: Record<string, number | boolean | null>;
+	/** キーは MonthResult のフィールド名のみ。値が null のフィールドは fixture 抽出側のミスとして
+	 * 扱い、テストは fail する(silent skip しない)。 */
+	expected: Partial<Record<SnapshotExpectedKey, number | boolean>>;
 }
 
 describe.skipIf(SKIP)('Excel snapshot regression', () => {
@@ -34,9 +41,10 @@ describe.skipIf(SKIP)('Excel snapshot regression', () => {
 				birthDate: c.input.birthDate || null,
 				rates
 			});
-			for (const [k, v] of Object.entries(c.expected)) {
-				if (v === null) continue;
-				expect((got as unknown as Record<string, unknown>)[k]).toBe(v);
+			for (const k of Object.keys(c.expected) as SnapshotExpectedKey[]) {
+				const v = c.expected[k];
+				expect(v, `expected[${k}] should not be null in fixture`).toBeDefined();
+				expect(got[k]).toBe(v);
 			}
 		});
 	}
