@@ -2,6 +2,10 @@
 
 Web アプリ(SvelteKit + Cloudflare Workers Static Assets)を自分で動かすための、ローカル開発から本番デプロイまでの手順をまとめます。
 
+## 正規の公開 URL
+
+本リポジトリの正規(作者運用)デプロイ先は **<https://solo-shaho.quokka.trade/>** です。フォークして自分用に運用する場合は、以下の手順で別の URL にデプロイしてください。
+
 ## 必要な環境
 
 - Node.js 22+
