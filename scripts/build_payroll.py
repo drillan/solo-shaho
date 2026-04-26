@@ -1,4 +1,7 @@
-"""給与計算.xlsx ジェネレータ (C方式: 生年月日から介護該当を自動判定).
+"""給与計算.xlsx サンプルジェネレータ (C方式: 生年月日から介護該当を自動判定).
+
+本スクリプトは sample/給与計算.xlsx を生成する用途です。実運用には Web アプリ
+の利用を推奨します(個人データはブラウザ内のみで保持、サーバ送信なし)。
 
 3 シート構成:
   - 設定: 氏名・生年月日・標準報酬月額/給与額面の現行値(備忘)
@@ -16,8 +19,12 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "給与計算.xlsx"
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "sample" / "給与計算.xlsx"
 
+# 架空のサンプル人物。ドキュメントの計算例と整合させて 1986/4/15 を採用
+# (2026/4 月から介護該当判定が TRUE になり、サンプルとして判定ロジックを示せる)。
+SAMPLE_NAME = "サンプル 太郎"
+SAMPLE_BIRTHDATE = date(1986, 4, 15)
 STD_REMUNERATION = 88000
 GROSS_SALARY = 83000
 
@@ -69,8 +76,8 @@ def build_settings(ws):
     ws.title = "設定"
     rows = [
         ("項目", "値", "備考"),
-        ("氏名", "", "任意"),
-        ("生年月日", "", "YYYY/MM/DD で入力。空のままだと全期間 介護該当=FALSE"),
+        ("氏名", SAMPLE_NAME, "サンプル(架空人物)"),
+        ("生年月日", SAMPLE_BIRTHDATE, "YYYY/MM/DD で入力。空のままだと全期間 介護該当=FALSE"),
         ("標準報酬月額(現行)", STD_REMUNERATION, "改定があれば月次計算 E列を該当月から書換"),
         ("給与額面(現行)", GROSS_SALARY, "改定があれば月次計算 F列を該当月から書換"),
         ("対応スコープ", "健保・介護(2号)・厚年・拠出金・支援金", "雇用/労災/賞与は対象外"),
@@ -247,6 +254,7 @@ def main():
     build_settings(wb.active)
     build_rates(wb)
     build_monthly(wb)
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUTPUT_PATH)
     print(f"Wrote {OUTPUT_PATH}")
 

@@ -9,18 +9,20 @@
 uv sync --group docs
 ```
 
-これで `.venv` が作成され、openpyxl・sphinx・myst-parser・furo がインストールされます。
+これで `.venv` が作成され、openpyxl・sphinx・myst-parser がインストールされます。
 
-## ブックの再生成
+## サンプルブックの再生成
 
-`scripts/build_payroll.py` は **冪等な生成スクリプト** で、既存の `給与計算.xlsx` を上書きします(過去データは設定とコードに含まれているため、何度実行しても同じ結果)。
+`scripts/build_payroll.py` は **冪等なサンプル生成スクリプト** で、`sample/給与計算.xlsx` を上書きします(架空人物「サンプル 太郎」のデータと過去料率履歴がコードに含まれているため、何度実行しても同じ結果)。
 
 ```{code-block} bash
-uv run scripts/build_payroll.py
+uv run python scripts/build_payroll.py
 ```
 
+出力先: `sample/給与計算.xlsx`(リポジトリで追跡され、GitHub から直接ダウンロード可能)
+
 ```{warning}
-**Excel で `給与計算.xlsx` を開いている状態では再生成できません**(ファイルロック)。閉じてから実行してください。
+**Excel で `sample/給与計算.xlsx` を開いている状態では再生成できません**(ファイルロック)。閉じてから実行してください。
 ```
 
 (rate-update-procedure)=

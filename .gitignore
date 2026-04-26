@@ -230,6 +230,8 @@ __marimo__/
 *.xls
 ~$*.xlsx
 ~$*.xlsm
+# サンプル Excel は架空人物データのみで構成され、リポジトリで公開する
+!sample/給与計算.xlsx
 
 # OS / エディタ系
 .DS_Store

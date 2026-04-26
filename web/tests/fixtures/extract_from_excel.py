@@ -1,6 +1,7 @@
-"""給与計算.xlsx から計算結果を JSON fixture として抽出する.
+"""sample/給与計算.xlsx から計算結果を JSON fixture として抽出する.
 
-個人データを含むため出力ファイルは gitignore 対象。
+サンプル人物データから計算結果のスナップショットを取り、Web 計算エンジンの
+回帰テスト fixture として保存する。出力ファイルは gitignore 対象。
 """
 import json
 from datetime import date, datetime
@@ -9,7 +10,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 ROOT = Path(__file__).resolve().parents[3]
-EXCEL = ROOT / "給与計算.xlsx"
+EXCEL = ROOT / "sample" / "給与計算.xlsx"
 OUTPUT = Path(__file__).parent / "excel-snapshot.json"
 
 

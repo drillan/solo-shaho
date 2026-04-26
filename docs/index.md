@@ -35,7 +35,7 @@ reference/sources
 
 ```{toctree}
 :maxdepth: 2
-:caption: Excel 作成(オマケ)
+:caption: Excel ブック(オマケ)
 
 excel/index
 excel/sheets

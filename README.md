@@ -11,7 +11,7 @@
 | 形態 | 用途 | 状態 |
 |---|---|---|
 | **Web アプリ** (`web/`) | 日常運用の主役。ブラウザで動作、Cloudflare Workers Static Assets で配信 | Phase 1 リリース済み |
-| **Excel ブック** (`給与計算.xlsx`) | 税務調査・印刷用のバックアップ | 凍結(現役) |
+| **Excel ブック** ([`sample/給与計算.xlsx`](sample/給与計算.xlsx)) | サンプル公開・参考実装。架空人物データで生成済み | サンプル公開 |
 | **ドキュメント** (`docs/`) | Sphinx + MyST の仕様書 | 現役 |
 
 ## 対応スコープ
@@ -28,7 +28,7 @@
 - 氏名・生年月日・標準報酬月額・給与額面は **あなたのブラウザの localStorage にのみ保存** されます
 - 計算ロジックは静的アセットとして配信され、サーバへのリクエストは静的ファイル取得のみです
 - CSP・X-Frame-Options 等のセキュリティヘッダで XSS による漏洩リスクを軽減しています
-- Excel ファイル(`*.xlsx`)は gitignore で除外されており、リポジトリには計算ロジックと仕様書のみが含まれます
+- Excel ファイル(`*.xlsx`)は原則 gitignore で除外。例外として `sample/給与計算.xlsx` のみ追跡対象で、これは架空人物のサンプルデータ(「サンプル 太郎」・1986/4/15)で生成されています
 
 ---
 
@@ -147,15 +147,17 @@ cd web && pnpm test tests/fixtures/excel-snapshot.test.ts
 
 ---
 
-## Excel ブック版の使い方(バックアップ用)
+## Excel ブック(サンプル公開)
 
-Web アプリ版と独立に動作するため、税務調査・印刷用に必要なら従来通り使えます。
+リポジトリには架空人物「サンプル 太郎」(生年月日 1986/4/15) のデータで生成された Excel ブック [`sample/給与計算.xlsx`](sample/給与計算.xlsx) を含めています。GitHub から直接ダウンロードして中身を確認できます。
 
-### Excel 再生成
+実運用は **Web アプリ版を推奨** します(個人データはブラウザ内のみ・サーバ送信なし)。Excel 版は参考実装・印刷用としてご利用ください。
+
+### サンプル再生成
 
 ```sh
 uv sync                                              # Python 環境セットアップ
-uv run python scripts/build_payroll.py               # 給与計算.xlsx を再生成
+uv run python scripts/build_payroll.py               # sample/給与計算.xlsx を再生成
 ```
 
 ### ドキュメントビルド
