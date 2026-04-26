@@ -19,6 +19,7 @@ web/quickstart
 web/usage
 web/csv
 web/architecture
+web/deploy
 ```
 
 ```{toctree}
