@@ -160,28 +160,34 @@ uv sync                                              # Python 環境セットア
 uv run python scripts/build_payroll.py               # sample/給与計算.xlsx を再生成
 ```
 
-### ドキュメントビルド
+---
+
+## ドキュメント
+
+### ビルド
 
 ```sh
 uv sync --group docs
-uv run --group docs sphinx-build -b html docs docs/_build/html
+make -C docs html                                    # 静的 HTML 生成
+make -C docs serve                                   # HTTP サーバ経由で閲覧 (Mermaid 図に必須)
+make -C docs livehtml                                # 編集→自動再ビルド+ライブリロード
 ```
 
-ビルド後、`docs/_build/html/index.html` をブラウザで開くと閲覧できます。
+`docs/_build/html/index.html` をブラウザで開くと閲覧できます(`file://` では Mermaid 描画が CORS 制約で動作しないため、`make serve` 経由を推奨)。
 
-### 主なドキュメント目次
+### 構成(3 部)
 
-詳細は `docs/index.md` から参照してください。
+`docs/index.md` を入口に、次の 3 部構成です。
 
-- **概要** — ブック構成と残額方式の概略
-- **シート仕様** — 設定 / 料率マスタ / 月次計算 の全列定義
-- **計算ロジック** — 端数処理・残額方式・介護該当判定・XLOOKUP
-- **料率の知識** — 健保 / 介護 / 厚年 / 拠出金 / 支援金 の制度概要と料率履歴
-- **納付月セマンティクス** — 行ラベル「年/月」が意味するもの
-- **経理処理** — 預り金と法定福利費の仕訳例
-- **運用ガイド** — 料率改定・生年月日変更・標準報酬月額改定への対応
-- **既知の制限** — 賞与・複数名・雇用保険等の未対応範囲
-- **参考資料** — 公式 PDF・解説記事・用語集
+**Web アプリケーション** (`docs/web/`) — 主要ツール
+- 概要 / クイックスタート / 使い方 / CSV 仕様 / アーキテクチャ
+
+**社会保険料計算 — リファレンス** (`docs/reference/`) — Excel/Web 共通の計算規範
+- 計算ロジック(端数処理・残額方式・介護該当判定・時系列の料率参照)
+- 料率の知識・納付月セマンティクス・経理処理・出典
+
+**Excel ブック(オマケ)** (`docs/excel/`) — 参考実装
+- 概要・シート仕様・運用ガイド・既知の制限
 
 ---
 
@@ -202,7 +208,7 @@ uv run --group docs sphinx-build -b html docs docs/_build/html
 web/src/lib/
 ├── payroll/           # 純粋計算関数 + ドメイン型 + validator
 │   ├── types.ts       # AppState / RateEntry / MonthInput / MonthResult + validateAppState / validateRateHistory
-│   ├── lookup.ts      # 共通: 効力発生日順での XLOOKUP 相当
+│   ├── lookup.ts      # 共通: 効力発生日順での履歴検索
 │   ├── rates.ts       # findApplicableRate
 │   ├── remuneration.ts# findApplicableRemuneration
 │   ├── kaigo.ts       # 介護該当判定 + 年齢計算
