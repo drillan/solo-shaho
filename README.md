@@ -48,7 +48,7 @@
 
 ## Web アプリ版の使い方
 
-正規(作者運用)の公開 URL: **<https://solo-shaho.quokka.trade/>**
+動作サンプル: **<https://solo-shaho.quokka.trade/>**(そのままご利用可)
 
 ### 必要な環境
 
