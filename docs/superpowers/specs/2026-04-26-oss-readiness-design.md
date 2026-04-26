@@ -99,14 +99,15 @@
 **目的**: Sphinx ドキュメントを GitHub Pages で自動公開する。
 
 **変更ファイル**:
-- 新規: `.github/workflows/docs.yml` — main への push をトリガに以下を実行:
-  1. `actions/checkout@v5`
-  2. `astral-sh/setup-uv@v6`(Python 3.13 セットアップ)
-  3. `uv sync --group docs`
-  4. `uv run sphinx-build -b html docs docs/_build/html`
-  5. `touch docs/_build/html/.nojekyll`(`_static/` が Jekyll に無視されるのを防ぐ)
-  6. `actions/upload-pages-artifact@v4`(`path: docs/_build/html`)
-  7. `actions/deploy-pages@v5`(別ジョブで `permissions: pages: write, id-token: write`)
+- 新規: `.github/workflows/docs.yml` — main への push をトリガに以下を実行(GitHub Actions は計画時点の最新メジャーを採用):
+  1. `actions/checkout@v6`
+  2. `actions/configure-pages@v6`(GitHub Pages 配信先のセットアップ)
+  3. `astral-sh/setup-uv@v8`(Python 3.13 セットアップ)
+  4. `uv sync --group docs`
+  5. `uv run sphinx-build -b html -W --keep-going docs docs/_build/html`
+  6. `touch docs/_build/html/.nojekyll`(`_static/` が Jekyll に無視されるのを防ぐ)
+  7. `actions/upload-pages-artifact@v5`(`path: docs/_build/html`)
+  8. `actions/deploy-pages@v5`(別ジョブで `permissions: pages: write, id-token: write`)
 - `docs/conf.py` — `html_baseurl = "https://drillan.github.io/solo-shaho/"` を追加(absolute URL でリンクが正しく解決されるため)
 
 **手動作業(初回のみ)**:

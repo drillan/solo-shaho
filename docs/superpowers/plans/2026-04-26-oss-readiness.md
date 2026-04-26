@@ -190,26 +190,27 @@ git checkout -b docs/readme-license-disclaimer
 料率改定や仕様変更に気づかれた場合は、Issue または Pull Request でお知らせいただけると助かります(対応はベストエフォートです)。
 ```
 
-- [ ] **Step 4: README 末尾にライセンスセクションを追加**
+- [ ] **Step 4: README 末尾の既存「ライセンス」セクションを MIT 記述に置換**
 
-`README.md` の最終行に以下を追加(末尾の改行も維持):
+`README.md` には既に末尾に `## ライセンス` セクションが存在する(現状: 「未設定(個人プロジェクト)。」)。**新規追加ではなく置換する**。本文 `未設定(個人プロジェクト)。` を以下に差し替える:
 
 ```markdown
-
----
-
 ## ライセンス
 
 [MIT License](LICENSE) © 2026 driller
 ```
 
-- [ ] **Step 5: 検証 — Markdown プレビュー**
+`## ライセンス` 見出し自体は維持・本文のみ置換。
+
+- [ ] **Step 5: 検証 — 新規追加文字列の存在確認**
 
 ```bash
-grep -n "License: MIT\|## 免責事項\|## ライセンス" README.md
+grep -n "License: MIT\|## 免責事項\|MIT License.*LICENSE.*© 2026 driller\|未設定(個人プロジェクト)" README.md
 ```
 
-期待: 3 行すべてマッチする。
+期待:
+- バッジ行(`License: MIT`)・免責見出し(`## 免責事項`)・MIT 文字列(`MIT License...© 2026 driller`)の 3 行がマッチ
+- 旧本文(`未設定(個人プロジェクト)`)はマッチしない(置換済み)
 
 - [ ] **Step 6: コミットと PR 作成**
 
@@ -307,7 +308,7 @@ Web アプリ(SvelteKit + Cloudflare Workers Static Assets)を自分で動かす
 ### 必要な環境
 ```
 
-- [ ] **Step 5: 検証 — リンク確認**
+- [ ] **Step 5: 検証 — 新 URL の追記確認**
 
 ```bash
 grep -n "solo-shaho.quokka.trade" README.md docs/web/deploy.md
@@ -315,7 +316,23 @@ grep -n "solo-shaho.quokka.trade" README.md docs/web/deploy.md
 
 期待: README に 1 件、deploy.md に 1 件マッチする。
 
-- [ ] **Step 6: コミットと PR 作成**
+- [ ] **Step 6: 検証 — 旧 URL の残存チェック(Spec の対象範囲確認)**
+
+`docs/` 配下と README の中に、フォーク利用者向け以外の旧 URL 言及が残っていないか確認:
+
+```bash
+grep -rn "drillertest1004a\|workers\.dev" README.md docs/ \
+  --include="*.md" \
+  | grep -v "<your-account>" \
+  | grep -v "docs/superpowers/"
+```
+
+期待:
+- 出力は **空**(実 URL の旧アカウント言及なし・フォーク向け `<your-account>` プレースホルダのみ残る)
+- もし出力があれば、その箇所を新 URL `https://solo-shaho.quokka.trade/` に置換する(本ステップ内で対応)
+- `docs/superpowers/` 配下(spec/plan)は履歴記録のため変更不要
+
+- [ ] **Step 7: コミットと PR 作成**
 
 ```bash
 git add README.md docs/web/deploy.md
@@ -457,8 +474,10 @@ ls docs/_build/html/index.html
 
 - [ ] **Step 5: workflow YAML 構文チェック**
 
+CLAUDE.md のルール(`python3` 直接禁止)に従い、`uv run` 経由で実行。`pyyaml` はプロジェクト依存に含まれないため `--with` で一時導入する:
+
 ```bash
-python3 -c "import yaml; yaml.safe_load(open('.github/workflows/docs.yml'))" 2>&1 || echo "YAML エラー"
+uv run --with pyyaml python -c "import yaml; yaml.safe_load(open('.github/workflows/docs.yml'))" 2>&1 || echo "YAML エラー"
 ```
 
 期待: 何も出力されない(構文 OK)。
