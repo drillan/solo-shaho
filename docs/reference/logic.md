@@ -189,12 +189,12 @@ $$
 によって決まります。社員側合計 $X = \sum_k x^k_e$、事業主側合計 $Y = \sum_k x^k_b$ とすると、納付額 $Z$ は
 
 ```{math}
-\begin{align}
+\begin{aligned}
 Z &= X + Y \\
   &= \sum_k (x^k_e + x^k_b) \\
   &= \sum_k \lfloor T_k \rfloor \\
   &= \text{通知額}
-\end{align}
+\end{aligned}
 ```
 
 各保険料の社員 + 事業主が床値 $\lfloor T_k \rfloor$ に等しい(残額方式の保証)ため、納付額 $Z$ は **常に通知額と一致** します。
