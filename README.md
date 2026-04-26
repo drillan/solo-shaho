@@ -48,6 +48,8 @@
 
 ## Web アプリ版の使い方
 
+動作サンプル: **<https://solo-shaho.quokka.trade/>**(そのままご利用可)
+
 ### 必要な環境
 
 - Node.js 22+
