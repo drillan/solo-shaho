@@ -1,5 +1,7 @@
 # solo-shaho
 
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue.svg)](https://drillan.github.io/solo-shaho/)
+
 **マイクロ法人(1 人法人)向け** 社会保険(協会けんぽ + 厚生年金)月次計算ツール。
 
 社労士や SaaS に頼らず、自分のブラウザだけで月次の社会保険料計算を完結させることを目的にしています。協会けんぽ東京の保険料額表を一次情報として参照し、計算ロジックは公式の端数処理ルールに準拠しています(残額方式で折半額×2 と納付額のズレを構造的に回避)。
@@ -13,6 +15,8 @@
 | **Web アプリ** (`web/`) | 日常運用の主役。ブラウザで動作、Cloudflare Workers Static Assets で配信 | Phase 1 リリース済み |
 | **Excel ブック** ([`sample/給与計算.xlsx`](sample/給与計算.xlsx)) | サンプル公開・参考実装。架空人物データで生成済み | サンプル公開 |
 | **ドキュメント** (`docs/`) | Sphinx + MyST の仕様書 | 現役 |
+
+ドキュメントの最新ビルドは **<https://drillan.github.io/solo-shaho/>** で公開しています。GitHub 上のソース(`docs/` 配下)も併記してリンクします。
 
 ## 対応スコープ
 
@@ -104,6 +108,15 @@ uv run python scripts/build_payroll.py               # sample/給与計算.xlsx 
 ---
 
 ## ドキュメント
+
+### 公開サイト
+
+最新ビルドは GitHub Pages で公開しています: <https://drillan.github.io/solo-shaho/>
+
+主な入口:
+- Web アプリ運用: [`docs/web/`](docs/web/) / [公開版](https://drillan.github.io/solo-shaho/web/index.html)
+- 計算ロジック リファレンス: [`docs/reference/`](docs/reference/) / [公開版](https://drillan.github.io/solo-shaho/reference/index.html)
+- Excel ブック(オマケ): [`docs/excel/`](docs/excel/) / [公開版](https://drillan.github.io/solo-shaho/excel/index.html)
 
 ### ビルド
 
