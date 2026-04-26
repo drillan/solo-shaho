@@ -34,3 +34,5 @@ flowchart LR
 - [クイックスタート](quickstart.md) — 起動から初回計算まで
 - [使い方](usage.md) — タブ別の画面解説
 - [CSV 仕様](csv.md) — エクスポート/インポート形式
+- [アーキテクチャ](architecture.md) — モジュール構成
+- [デプロイ・運用](deploy.md) — ローカル動作確認・Cloudflare デプロイ・Workers Builds

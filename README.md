@@ -39,74 +39,15 @@
 - Node.js 22+
 - pnpm
 
-### ローカル開発
+### クイックスタート
 
 ```sh
 cd web
 pnpm install
-pnpm dev          # http://localhost:5173/(ホットリロード・CSP は反映されない)
+pnpm dev          # http://localhost:5173/
 ```
 
-### ローカル本番相当(Cloudflare Workers エミュレーション)
-
-セキュリティヘッダー(CSP 等)も含めて本番と同じ動作を確認したい場合:
-
-```sh
-cd web
-pnpm preview      # vite build → wrangler dev → http://localhost:8787/
-```
-
-別ターミナルでヘッダーを検証:
-
-```sh
-curl -I http://localhost:8787/
-```
-
-期待されるヘッダー: `Content-Security-Policy`(HTML 内 meta tag・sha256 hash 付き)、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`、`Permissions-Policy: ...`、`X-Content-Type-Options: nosniff`
-
-### Cloudflare Workers にデプロイ
-
-#### 初回のみ
-
-```sh
-cd web
-pnpm exec wrangler login        # ブラウザで Cloudflare 認証
-```
-
-#### 通常のデプロイ
-
-```sh
-cd web
-pnpm deploy                      # vite build → wrangler deploy
-```
-
-デプロイ完了後、出力される URL でアクセス可能。
-
-```
-https://solo-shaho.<your-account>.workers.dev
-```
-
-#### 本番のセキュリティヘッダー検証
-
-```sh
-curl -I https://solo-shaho.<your-account>.workers.dev/
-curl -s https://solo-shaho.<your-account>.workers.dev/ | grep -i content-security-policy
-```
-
-### Workers Builds(GitHub 連携・自動デプロイ)
-
-Cloudflare ダッシュボードで以下を設定すると、`main` への push で自動デプロイ + PR ごとにプレビュー URL が発行されます。
-
-| 項目 | 値 |
-|---|---|
-| Repository | あなたの GitHub リポジトリ |
-| Root directory | `web` |
-| Build watch path | `web/**` |
-| Build command | `pnpm install --frozen-lockfile && pnpm typecheck && pnpm lint && pnpm test && pnpm build` |
-| Deploy command | `pnpm exec wrangler deploy` |
-| Production branch | `main` |
-| Non-production branch builds | enabled |
-| Node.js version | 22 |
+ローカル本番相当のエミュレーション(`pnpm preview`)、Cloudflare Workers へのデプロイ、Workers Builds(GitHub 連携・自動デプロイ)の設定など、詳細は [デプロイ・運用](docs/web/deploy.md) を参照してください。
 
 ### Web アプリの操作
 
