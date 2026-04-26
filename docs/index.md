@@ -17,6 +17,7 @@
 web/index
 web/quickstart
 web/usage
+web/storage
 web/csv
 web/architecture
 web/deploy
