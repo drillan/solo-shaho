@@ -1,6 +1,6 @@
 # solo-shaho
 
-[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue.svg)](https://drillan.github.io/solo-shaho/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue.svg)](https://drillan.github.io/solo-shaho/)
 
 **マイクロ法人(1 人法人)向け** 社会保険(協会けんぽ + 厚生年金)月次計算ツール。
 
@@ -33,6 +33,16 @@
 - 計算ロジックは静的アセットとして配信され、サーバへのリクエストは静的ファイル取得のみです
 - CSP・X-Frame-Options 等のセキュリティヘッダで XSS による漏洩リスクを軽減しています
 - Excel ファイル(`*.xlsx`)は原則 gitignore で除外。例外として `sample/給与計算.xlsx` のみ追跡対象で、これは架空人物のサンプルデータ(「サンプル 太郎」・1986/4/15)で生成されています
+
+## 免責事項
+
+本ツールは月次の社会保険料計算を補助する目的で提供される **計算補助ツール** であり、社労士・税理士業務を代替するものではありません。
+
+- 計算結果の **正確性は保証しません**。料率改定の反映遅延、特殊な被保険者区分(海外赴任者・短時間労働者の特例等)、端数処理ルールの改正などにより、実際の納付額と乖離する可能性があります
+- 本ツールの計算結果に基づく **公式手続き(算定基礎届・月変届・納付等)は利用者の責任** で行ってください。最終判断は社労士・税理士・年金事務所等の専門家にご相談ください
+- 本ツールの利用により生じた **いかなる損害についても作者は責任を負いません**
+
+料率改定や仕様変更に気づかれた場合は、Issue または Pull Request でお知らせいただけると助かります(対応はベストエフォートです)。
 
 ---
 
@@ -203,4 +213,4 @@ pnpm format       # prettier --write
 
 ## ライセンス
 
-未設定(個人プロジェクト)。
+[MIT License](LICENSE) © 2026 driller
