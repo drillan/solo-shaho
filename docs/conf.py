@@ -42,3 +42,6 @@ oceanid_zoom = True
 
 # Enable fullscreen modal (default: False)
 oceanid_fullscreen = True
+
+# GitHub Pages 公開時の絶対 URL ベース
+html_baseurl = "https://drillan.github.io/solo-shaho/"
