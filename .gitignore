@@ -224,12 +224,14 @@ __marimo__/
 # ---------------------------------------------------------------------------
 
 # Excel ファイル(個人情報を含むためコミットしない)
-# 必要なら scripts/build_payroll_v2.py で再生成可能
+# 必要なら scripts/build_payroll.py で再生成可能
 *.xlsx
 *.xlsm
 *.xls
 ~$*.xlsx
 ~$*.xlsm
+# サンプル Excel は架空人物データのみで構成され、リポジトリで公開する
+!sample/給与計算.xlsx
 
 # OS / エディタ系
 .DS_Store
@@ -251,3 +253,6 @@ web/build/
 web/node_modules/
 web/.wrangler/
 web/tests/fixtures/excel-snapshot.json
+
+# issue-workflow
+/.issue-workflow/

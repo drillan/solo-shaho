@@ -1,17 +1,19 @@
 [project]
 name = "solo-shaho"
 version = "0.1.0"
-description = "マイクロ法人・個人事業主向け 社会保険料の月次計算ブック (給与計算_v2.xlsx) のジェネレータと仕様書"
-requires-python = ">=3.10"
+description = "マイクロ法人(1 人法人)向け 社会保険(協会けんぽ + 厚生年金)月次計算ツール (Web アプリ + 給与計算.xlsx ジェネレータ + 仕様書)"
+requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1",
 ]
 
 [dependency-groups]
 docs = [
-    "sphinx>=7",
-    "myst-parser>=2",
-    "furo>=2024",
+    "sphinx>=9.1",
+    "myst-parser>=5",
+    "shibuya>=2026.1.9",
+    "sphinx-oceanid>=0.1.2",
+    "sphinx-autobuild>=2024.10.3",
 ]
 
 [tool.uv]

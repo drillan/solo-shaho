@@ -7,6 +7,7 @@ release = "0.1.0"
 
 extensions = [
     "myst_parser",
+    "sphinx_oceanid",
 ]
 
 myst_enable_extensions = [
@@ -14,16 +15,30 @@ myst_enable_extensions = [
     "deflist",
     "tasklist",
     "attrs_inline",
+    "dollarmath",
+    "amsmath",
 ]
+
+myst_heading_anchors = 3
 
 source_suffix = {".md": "markdown"}
 
 language = "ja"
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "superpowers",
+]
 
-html_theme = "furo"
+html_theme = "shibuya"
 html_static_path = ["_static"]
 html_title = "solo-shaho ドキュメント"
 
-# 外部リンクは新規タブで
 myst_url_schemes = ("http", "https", "mailto", "ftp")
+
+# Enable zoom on all diagrams (default: False)
+oceanid_zoom = True
+
+# Enable fullscreen modal (default: False)
+oceanid_fullscreen = True

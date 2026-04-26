@@ -1,6 +1,6 @@
 """solo-shaho 独立検算スクリプト.
 
-`build_payroll_v2.py` の `RATE_HISTORY` を再利用し、Excel 数式とは独立に
+`build_payroll.py` の `RATE_HISTORY` を再利用し、Excel 数式とは独立に
 Python で社会保険料を再計算して、
 
 1. 既知シナリオ(2026/4・2026/5 の納付額)が期待値と一致するか
@@ -19,9 +19,9 @@ from datetime import date, timedelta
 from math import floor
 from pathlib import Path
 
-# build_payroll_v2.py から RATE_HISTORY を共有(単一の真実)
+# build_payroll.py から RATE_HISTORY を共有(単一の真実)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_payroll_v2 import (  # noqa: E402
+from build_payroll import (  # noqa: E402
     END_YEAR_MONTH,
     RATE_HISTORY,
     START_YEAR_MONTH,
