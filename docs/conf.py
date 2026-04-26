@@ -36,3 +36,9 @@ html_static_path = ["_static"]
 html_title = "solo-shaho ドキュメント"
 
 myst_url_schemes = ("http", "https", "mailto", "ftp")
+
+# Enable zoom on all diagrams (default: False)
+oceanid_zoom = True
+
+# Enable fullscreen modal (default: False)
+oceanid_fullscreen = True

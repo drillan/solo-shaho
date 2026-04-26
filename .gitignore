@@ -253,3 +253,6 @@ web/build/
 web/node_modules/
 web/.wrangler/
 web/tests/fixtures/excel-snapshot.json
+
+# issue-workflow
+/.issue-workflow/
