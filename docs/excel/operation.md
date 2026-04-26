@@ -9,7 +9,7 @@
 uv sync --group docs
 ```
 
-これで `.venv` が作成され、openpyxl・sphinx・myst-parser がインストールされます。
+これで `.venv` が作成され、openpyxl(本体)、および docs グループとして sphinx・myst-parser・shibuya・sphinx-oceanid・sphinx-autobuild がインストールされます。
 
 ## サンプルブックの再生成
 
@@ -33,7 +33,7 @@ uv run python scripts/build_payroll.py
 ### データの単一の真実(SoT)
 
 ```{important}
-料率の **唯一の正(Single Source of Truth)は `scripts/build_payroll.py` の `RATE_HISTORY` 定数** です。`docs/rates.md` の表は、この定数を人間が読みやすく転記したものに過ぎません。
+料率の **唯一の正(Single Source of Truth)は `scripts/build_payroll.py` の `RATE_HISTORY` 定数** です。`docs/reference/rates.md` の表は、この定数を人間が読みやすく転記したものに過ぎません。
 
 両者は手動で同期する必要があります。**コード側を変更したら必ず docs 側の表も同じ内容で更新してください**。検証スクリプト `scripts/verify_payroll.py` は `RATE_HISTORY` を直接 import するので、そちらは自動的に同期されます。
 ```
@@ -73,7 +73,7 @@ uv run python scripts/build_payroll.py
 
    既知シナリオ・構造的整合性・介護該当境界の 3 種類のテストがすべて OK で終わることを確認。
 
-6. **`docs/rates.md` の料率履歴表に同じ行を追記**(コード側と人間用ドキュメント側の両方を更新)
+6. **`docs/reference/rates.md` の料率履歴表に同じ行を追記**(コード側と人間用ドキュメント側の両方を更新)
 7. Excel を開いて、追加した適用開始日以降の月で料率が新しい値になっていることを確認
 
 ### 行ラベル(納付月)に注意
@@ -136,16 +136,15 @@ uv run scripts/verify_payroll.py
 このドキュメント(`docs/`)の HTML を再生成するには:
 
 ```{code-block} bash
-uv run --group docs sphinx-build -b html docs docs/_build/html
+make -C docs html
 ```
 
-`docs/_build/html/index.html` をブラウザで開くと閲覧できます。
+`docs/_build/html/index.html` をブラウザで開くと閲覧できます(Mermaid 図を表示するには `make -C docs serve` 経由で HTTP サーバから開く必要があります)。
 
-執筆中に変更を即座に反映させたい場合は `sphinx-autobuild` を使うと便利:
+執筆中に変更を即座に反映させたい場合はライブリロード対応の `livehtml` ターゲットが便利:
 
 ```{code-block} bash
-uv pip install sphinx-autobuild
-uv run --group docs sphinx-autobuild docs docs/_build/html
+make -C docs livehtml
 ```
 
-`http://127.0.0.1:8000` でライブプレビューが見られます(`sphinx-autobuild` は本リポジトリの依存に含めていないので、必要時に追加してください)。
+`http://127.0.0.1:8000` でファイル変更を監視しながら自動再ビルドされます。`sphinx-autobuild` は docs グループに同梱済みなので、追加インストールは不要です。
