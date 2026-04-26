@@ -109,6 +109,15 @@ uv run python scripts/build_payroll.py               # sample/給与計算.xlsx 
 
 ## ドキュメント
 
+### 公開サイト
+
+最新ビルドは GitHub Pages で公開しています: <https://drillan.github.io/solo-shaho/>
+
+主な入口:
+- Web アプリ運用: [`docs/web/`](docs/web/) / [公開版](https://drillan.github.io/solo-shaho/web/index.html)
+- 計算ロジック リファレンス: [`docs/reference/`](docs/reference/) / [公開版](https://drillan.github.io/solo-shaho/reference/index.html)
+- Excel ブック(オマケ): [`docs/excel/`](docs/excel/) / [公開版](https://drillan.github.io/solo-shaho/excel/index.html)
+
 ### ビルド
 
 ```sh
@@ -189,17 +198,6 @@ pnpm lint         # prettier + eslint
 pnpm test         # vitest
 pnpm format       # prettier --write
 ```
-
----
-
-## ドキュメント
-
-- 公開ドキュメントサイト: <https://drillan.github.io/solo-shaho/>
-- リポジトリ内ソース: [`docs/`](docs/)
-- 主な入口:
-  - Web アプリ運用: [`docs/web/`](docs/web/) / [公開版](https://drillan.github.io/solo-shaho/web/index.html)
-  - 計算ロジック リファレンス: [`docs/reference/`](docs/reference/) / [公開版](https://drillan.github.io/solo-shaho/reference/index.html)
-  - Excel ブック(オマケ): [`docs/excel/`](docs/excel/) / [公開版](https://drillan.github.io/solo-shaho/excel/index.html)
 
 ---
 
