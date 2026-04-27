@@ -5,6 +5,7 @@
 # build output
 resources/public/js/
 resources/public/css/main.css
+out/
 
 # node
 node_modules/
