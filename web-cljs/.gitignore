@@ -1,0 +1,15 @@
+# shadow-cljs
+.shadow-cljs/
+.cpcache/
+
+# build output
+resources/public/js/
+resources/public/css/main.css
+
+# node
+node_modules/
+
+# editor
+.nrepl-port
+.calva/
+.lsp/

@@ -1,0 +1,15 @@
+{:source-paths ["src" "test"]
+ :dependencies [[org.clojure/clojurescript "1.11.132"]
+                [metosin/malli "0.16.4"]]
+
+ :builds
+ {:app  {:target     :browser
+         :modules    {:main {:init-fn solo-shaho.core/init}}
+         :output-dir "resources/public/js"
+         :asset-path "/js"
+         :devtools   {:http-root "resources/public"
+                      :http-port 8080}}
+
+  :test {:target    :node-test
+         :output-to "out/test.js"
+         :ns-regexp "-test$"}}}

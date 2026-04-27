@@ -1,0 +1,16 @@
+{
+  "name": "solo-shaho-cljs",
+  "version": "0.0.1",
+  "private": true,
+  "description": "solo-shaho の Clojure(Script) 学習・実験ポート（experiment/clojure-port のみ）",
+  "scripts": {
+    "watch": "shadow-cljs watch app",
+    "release": "shadow-cljs release app",
+    "test": "shadow-cljs compile test && node out/test.js",
+    "test:watch": "shadow-cljs watch test",
+    "repl": "shadow-cljs cljs-repl app"
+  },
+  "devDependencies": {
+    "shadow-cljs": "^2.27.0"
+  }
+}
