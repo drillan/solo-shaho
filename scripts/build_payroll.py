@@ -8,16 +8,17 @@
   - 料率マスタ: 適用開始日 / 健保(介護なし) / 介護料率 / 厚年 / 拠出金 / 支援金 / 備考
   - 月次計算: 各行で生年月日から介護該当を判定し、健保適用料率を動的合算
 
-支援金 (令和8年4月分から開始・労使折半・健保とは別建て) に対応。
-事業主負担は「全額切捨て − 社員負担」の残額方式で算出 (折半額×2 と納付額の
-1円ズレが構造的に発生しない)。
+支援金 (令和8年4月分から開始・労使折半) は協会けんぽ告知(健保+介護+支援金)に
+合算する。納入告知額は保険料の種別ごとではなく **告知書(保険者)単位で合算して
+から 1 円未満切捨て**(協会けんぽ料額表の脚注ルール)。健保と支援金の銭端数が
+告知書内で合算されるため、種別ごとに切り捨てると 1 円不足する。事業主負担は
+告知額からの残額方式で算出する。
 """
 from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
 
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "sample" / "給与計算.xlsx"
 
@@ -132,12 +133,13 @@ def build_monthly(wb):
         "標準報酬月額", "給与額面",                                # E, F
         "健保(介護なし)", "介護料率", "厚年料率", "拠出金率", "支援金率",  # G-K
         "健保適用料率",                                            # L (=G+IF(D,H,0))
-        "健保(全額)", "厚年(全額)", "拠出金(全額)", "支援金(全額)",  # M-P
-        "健保・社員", "厚年・社員", "支援金・社員",                  # Q, R, S
-        "健保・事業主", "厚年・事業主", "拠出金・事業主", "支援金・事業主",  # T, U, V, W
-        "社員天引き合計", "事業主負担合計", "法定福利費(納付額)",     # X, Y, Z
-        "差引支給額",                                              # AA
-        "通知額", "通知額差分",                                    # AB, AC
+        "健保(全額)", "支援金(全額)", "厚年(全額)", "拠出金(全額)",  # M-P (補助・小数)
+        "協会けんぽ(全額)", "協会けんぽ・社員", "協会けんぽ・事業主",  # Q, R, S (健保+介護+支援金 告知)
+        "厚年(全額・円)", "厚年・社員", "厚年・事業主",              # T, U, V
+        "拠出金(全額・円)", "拠出金・事業主",                        # W, X
+        "社員天引き合計", "事業主負担合計", "法定福利費(納付額)",     # Y, Z, AA
+        "差引支給額",                                              # AB
+        "通知額", "通知額差分",                                    # AC, AD
     ]
     for c, h in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=c, value=h)
@@ -180,33 +182,38 @@ def build_monthly(wb):
         # 健保適用料率 (介護該当なら介護を足す)
         ws.cell(row=r, column=12, value=f"=G{r}+IF(D{r},H{r},0)")
 
-        # 全額
-        ws.cell(row=r, column=13, value=f"=E{r}*L{r}")     # 健保
-        ws.cell(row=r, column=14, value=f"=E{r}*I{r}")     # 厚年
-        ws.cell(row=r, column=15, value=f"=ROUNDDOWN(E{r}*J{r},0)")  # 拠出金 (事業主のみ・全額切捨て)
-        ws.cell(row=r, column=16, value=f"=E{r}*K{r}")     # 支援金
+        # 全額 (補助列・小数を含む。M+N が協会けんぽ告知、O+P が年金機構告知)
+        ws.cell(row=r, column=13, value=f"=E{r}*L{r}")              # M 健保(介護込み)
+        ws.cell(row=r, column=14, value=f"=E{r}*K{r}")              # N 支援金
+        ws.cell(row=r, column=15, value=f"=E{r}*I{r}")              # O 厚年
+        ws.cell(row=r, column=16, value=f"=ROUNDDOWN(E{r}*J{r},0)")  # P 拠出金 (事業主のみ・全額切捨て)
 
-        # 社員負担 (50銭以下切捨て・50銭超切上げ)
-        ws.cell(row=r, column=17, value=f"=INT(M{r}/2)+IF(MOD(M{r},2)>1,1,0)")  # 健保
-        ws.cell(row=r, column=18, value=f"=INT(N{r}/2)+IF(MOD(N{r},2)>1,1,0)")  # 厚年
-        ws.cell(row=r, column=19, value=f"=INT(P{r}/2)+IF(MOD(P{r},2)>1,1,0)")  # 支援金
+        # 協会けんぽ告知 (健保+介護+支援金): 合算してから 1 円未満切捨て。
+        # ROUND(...,2) は float 由来の銭端数を除去して整数境界での誤切捨てを防ぐ。
+        ws.cell(row=r, column=17, value=f"=ROUNDDOWN(ROUND(M{r}+N{r},2),0)")  # Q 全額(告知額)
+        ws.cell(row=r, column=18,
+                value=f"=INT(M{r}/2)+IF(MOD(M{r},2)>1,1,0)+INT(N{r}/2)+IF(MOD(N{r},2)>1,1,0)")  # R 社員(折半額の欄ごとに50銭超切上げの和)
+        ws.cell(row=r, column=19, value=f"=Q{r}-R{r}")             # S 事業主(残額方式)
 
-        # 事業主負担 (残額方式)
-        ws.cell(row=r, column=20, value=f"=ROUNDDOWN(M{r},0)-Q{r}")  # 健保
-        ws.cell(row=r, column=21, value=f"=ROUNDDOWN(N{r},0)-R{r}")  # 厚年
-        ws.cell(row=r, column=22, value=f"=O{r}")                    # 拠出金
-        ws.cell(row=r, column=23, value=f"=ROUNDDOWN(P{r},0)-S{r}")  # 支援金
+        # 厚年告知 (厚年全額は標準報酬月額が1000円単位ゆえ常に整数円)
+        ws.cell(row=r, column=20, value=f"=ROUNDDOWN(O{r},0)")     # T 全額
+        ws.cell(row=r, column=21, value=f"=INT(O{r}/2)+IF(MOD(O{r},2)>1,1,0)")  # U 社員
+        ws.cell(row=r, column=22, value=f"=T{r}-U{r}")            # V 事業主(残額方式)
+
+        # 子ども・子育て拠出金 (事業主全額)
+        ws.cell(row=r, column=23, value=f"=P{r}")                 # W 全額・円
+        ws.cell(row=r, column=24, value=f"=W{r}")                 # X 事業主
 
         # 集計
-        ws.cell(row=r, column=24, value=f"=Q{r}+R{r}+S{r}")        # 社員天引き
-        ws.cell(row=r, column=25, value=f"=T{r}+U{r}+V{r}+W{r}")   # 事業主負担
-        ws.cell(row=r, column=26, value=f"=X{r}+Y{r}")             # 納付額
+        ws.cell(row=r, column=25, value=f"=R{r}+U{r}")            # Y 社員天引き合計
+        ws.cell(row=r, column=26, value=f"=S{r}+V{r}+X{r}")       # Z 事業主負担合計
+        ws.cell(row=r, column=27, value=f"=Q{r}+T{r}+W{r}")       # AA 納付額(=各告知額の和=Y+Z)
 
         # 差引支給額
-        ws.cell(row=r, column=27, value=f"=F{r}-X{r}")
+        ws.cell(row=r, column=28, value=f"=F{r}-Y{r}")            # AB
 
-        # 通知額・差分
-        ws.cell(row=r, column=29, value=f'=IF(AB{r}="","",Z{r}-AB{r})')
+        # 通知額差分 (通知額 AC は手入力)
+        ws.cell(row=r, column=30, value=f'=IF(AC{r}="","",AA{r}-AC{r})')  # AD
 
     # 列幅
     widths = {
@@ -215,20 +222,21 @@ def build_monthly(wb):
         "G": 14, "H": 11, "I": 11, "J": 11, "K": 11,
         "L": 13,
         "M": 13, "N": 13, "O": 13, "P": 13,
-        "Q": 12, "R": 12, "S": 12,
-        "T": 13, "U": 13, "V": 14, "W": 14,
-        "X": 13, "Y": 13, "Z": 16,
-        "AA": 12, "AB": 11, "AC": 11,
+        "Q": 15, "R": 16, "S": 16,
+        "T": 13, "U": 12, "V": 13,
+        "W": 14, "X": 14,
+        "Y": 14, "Z": 14, "AA": 16,
+        "AB": 12, "AC": 11, "AD": 11,
     }
     for col_letter, w in widths.items():
         ws.column_dimensions[col_letter].width = w
 
     last_row = ws.max_row
     rate_cols = (7, 8, 9, 10, 11, 12)
-    money_cols = (5, 6, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29)
-    input_letters = ("A", "B", "E", "F", "AB")
+    money_cols = (5, 6, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30)
+    input_letters = ("A", "B", "E", "F", "AC")
     derived_letters = ("C", "D", "G", "H", "I", "J", "K", "L")
-    check_letters = ("AC",)
+    check_letters = ("AD",)
 
     for r in range(2, last_row + 1):
         for c in rate_cols:
@@ -243,8 +251,8 @@ def build_monthly(wb):
             ws[f"{letter}{r}"].fill = CHECK_FILL
 
     ws.freeze_panes = "C2"
-    legend = ws.cell(row=1, column=30,
-                     value="凡例: 黄=入力 / 灰=自動算出 / 緑=検算  ※介護該当は設定!B3 の生年月日から自動判定")
+    legend = ws.cell(row=1, column=31,
+                     value="凡例: 黄=入力 / 灰=自動算出 / 緑=検算  ※介護該当は設定!B3 の生年月日から自動判定  ※納付額は告知書(協会けんぽ=健保+介護+支援金 / 年金機構=厚年+拠出金)単位で合算後切捨て")
     legend.font = Font(italic=True, size=9)
     return ws
 

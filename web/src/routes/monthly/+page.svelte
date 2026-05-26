@@ -155,9 +155,11 @@
 				</thead>
 				<tbody>
 					<tr
-						><td>健保</td><td class="text-right">{formatYen(result.result.kenpoTotal)}</td><td
-							class="text-right">{formatYen(result.result.kenpoEmployee)}</td
-						><td class="text-right">{formatYen(result.result.kenpoEmployer)}</td></tr
+						><td>協会けんぽ<span class="text-xs text-gray-500">(健保+介護+支援金)</span></td><td
+							class="text-right">{formatYen(result.result.kyokaiTotal)}</td
+						><td class="text-right">{formatYen(result.result.kyokaiEmployee)}</td><td
+							class="text-right">{formatYen(result.result.kyokaiEmployer)}</td
+						></tr
 					>
 					<tr
 						><td>厚年</td><td class="text-right">{formatYen(result.result.koseiTotal)}</td><td
@@ -168,11 +170,6 @@
 						><td>拠出金</td><td class="text-right">{formatYen(result.result.kosodateTotal)}</td><td
 							class="text-right">─</td
 						><td class="text-right">{formatYen(result.result.kosodateEmployer)}</td></tr
-					>
-					<tr
-						><td>支援金</td><td class="text-right">{formatYen(result.result.shienTotal)}</td><td
-							class="text-right">{formatYen(result.result.shienEmployee)}</td
-						><td class="text-right">{formatYen(result.result.shienEmployer)}</td></tr
 					>
 					<tr class="border-t font-semibold"
 						><td>合計</td><td></td><td class="text-right"

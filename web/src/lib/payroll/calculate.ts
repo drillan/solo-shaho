@@ -34,25 +34,25 @@ export function calculateMonth(input: MonthInput): MonthResult {
 	const kosodateTotalSen = (stdRemuneration * rates.kosodate) / 1000;
 	const shienTotalSen = (stdRemuneration * rates.shien) / 1000;
 
-	// 全額(整数円・ROUNDDOWN 後)
-	const kenpoTotal = fullDownToYen(kenpoTotalSen);
+	// 協会けんぽ告知(健保+介護+支援金): 納入告知額は「合算してから 1 円未満切捨て」。
+	// 健保(例 10093.6)と支援金(例 202.4)の銭端数が告知書内で合算されるため、
+	// 種別ごとに切捨ててから足すと 1 円不足する(料額表の脚注ルール)。
+	const kyokaiTotalSen = kenpoTotalSen + shienTotalSen;
+	const kyokaiTotal = fullDownToYen(kyokaiTotalSen);
+	// 社員負担は折半額の欄ごとに 50 銭ルールを適用(健保・支援金それぞれ)した和。
+	const kyokaiEmployee = splitHalfEmployee(kenpoTotalSen) + splitHalfEmployee(shienTotalSen);
+	// 事業主負担は残額方式(告知額 − 社員負担)。協会けんぽ群の +1 円はここに乗る。
+	const kyokaiEmployer = kyokaiTotal - kyokaiEmployee;
+
+	// 年金機構告知(厚年+拠出金): 厚年全額は整数円のため、種別丸めと合算丸めが一致する。
 	const koseiTotal = fullDownToYen(koseiTotalSen);
-	const kosodateTotal = fullDownToYen(kosodateTotalSen);
-	const shienTotal = fullDownToYen(shienTotalSen);
-
-	// 社員負担(50銭以下切捨て・50銭超切上げ)
-	const kenpoEmployee = splitHalfEmployee(kenpoTotalSen);
 	const koseiEmployee = splitHalfEmployee(koseiTotalSen);
-	const shienEmployee = splitHalfEmployee(shienTotalSen);
-
-	// 事業主負担(残額方式 + 拠出金は事業主全額)
-	const kenpoEmployer = splitHalfEmployer(kenpoTotalSen, kenpoEmployee);
 	const koseiEmployer = splitHalfEmployer(koseiTotalSen, koseiEmployee);
-	const kosodateEmployer = kosodateTotal;
-	const shienEmployer = splitHalfEmployer(shienTotalSen, shienEmployee);
+	const kosodateTotal = fullDownToYen(kosodateTotalSen);
+	const kosodateEmployer = kosodateTotal; // 拠出金は事業主全額(社員負担 0)
 
-	const employeeDeductionTotal = kenpoEmployee + koseiEmployee + shienEmployee;
-	const employerBurdenTotal = kenpoEmployer + koseiEmployer + kosodateEmployer + shienEmployer;
+	const employeeDeductionTotal = kyokaiEmployee + koseiEmployee;
+	const employerBurdenTotal = kyokaiEmployer + koseiEmployer + kosodateEmployer;
 	const payableTotal = employeeDeductionTotal + employerBurdenTotal;
 	const netSalary = grossSalary - employeeDeductionTotal;
 
@@ -62,17 +62,14 @@ export function calculateMonth(input: MonthInput): MonthResult {
 		age,
 		isKaigoApplicable: isKaigo,
 		appliedKenpoRate,
-		kenpoTotal,
+		kyokaiTotal,
+		kyokaiEmployee,
+		kyokaiEmployer,
 		koseiTotal,
-		kosodateTotal,
-		shienTotal,
-		kenpoEmployee,
 		koseiEmployee,
-		shienEmployee,
-		kenpoEmployer,
 		koseiEmployer,
+		kosodateTotal,
 		kosodateEmployer,
-		shienEmployer,
 		employeeDeductionTotal,
 		employerBurdenTotal,
 		payableTotal,
