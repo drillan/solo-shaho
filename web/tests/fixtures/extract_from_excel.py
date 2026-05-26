@@ -45,23 +45,26 @@ def main() -> None:
                     "grossSalary": gross,
                     "birthDate": birth,
                 },
+                # 列対応 (月次計算シート・告知書単位の合算丸めモデル):
+                #   Q=協会けんぽ全額(17) R=協会社員(18) S=協会事業主(19)
+                #   T=厚年全額(20) U=厚年社員(21) V=厚年事業主(22)
+                #   W=拠出金全額(23) X=拠出金事業主(24)
+                #   Y=社員天引(25) Z=事業主負担(26) AA=納付額(27) AB=差引支給(28)
+                # values_only タプルは 0 始まりなので「列番号 − 1」で参照する。
                 "expected": {
                     "isKaigoApplicable": bool(row[3]),
-                    "kenpoTotal": int(row[12]) if row[12] is not None else None,
-                    "koseiTotal": int(row[13]) if row[13] is not None else None,
-                    "kosodateTotal": int(row[14]) if row[14] is not None else None,
-                    "shienTotal": int(row[15]) if row[15] is not None else None,
-                    "kenpoEmployee": int(row[16]) if row[16] is not None else None,
-                    "koseiEmployee": int(row[17]) if row[17] is not None else None,
-                    "shienEmployee": int(row[18]) if row[18] is not None else None,
-                    "kenpoEmployer": int(row[19]) if row[19] is not None else None,
-                    "koseiEmployer": int(row[20]) if row[20] is not None else None,
-                    "kosodateEmployer": int(row[21]) if row[21] is not None else None,
-                    "shienEmployer": int(row[22]) if row[22] is not None else None,
-                    "employeeDeductionTotal": int(row[23]) if row[23] is not None else None,
-                    "employerBurdenTotal": int(row[24]) if row[24] is not None else None,
-                    "payableTotal": int(row[25]) if row[25] is not None else None,
-                    "netSalary": int(row[26]) if row[26] is not None else None,
+                    "kyokaiTotal": int(row[16]) if row[16] is not None else None,
+                    "kyokaiEmployee": int(row[17]) if row[17] is not None else None,
+                    "kyokaiEmployer": int(row[18]) if row[18] is not None else None,
+                    "koseiTotal": int(row[19]) if row[19] is not None else None,
+                    "koseiEmployee": int(row[20]) if row[20] is not None else None,
+                    "koseiEmployer": int(row[21]) if row[21] is not None else None,
+                    "kosodateTotal": int(row[22]) if row[22] is not None else None,
+                    "kosodateEmployer": int(row[23]) if row[23] is not None else None,
+                    "employeeDeductionTotal": int(row[24]) if row[24] is not None else None,
+                    "employerBurdenTotal": int(row[25]) if row[25] is not None else None,
+                    "payableTotal": int(row[26]) if row[26] is not None else None,
+                    "netSalary": int(row[27]) if row[27] is not None else None,
                 },
             }
         )

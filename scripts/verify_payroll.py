@@ -4,7 +4,7 @@
 Python で社会保険料を再計算して、
 
 1. 既知シナリオ(2026/4・2026/5 の納付額)が期待値と一致するか
-2. 折半額×2 と納付額の構造的なズレがないか(全 127 ヶ月 × 介護 ON/OFF)
+2. 納付額が告知書(保険者)単位の合算丸めと一致するか(全 127 ヶ月 × 介護 ON/OFF)
 3. 介護該当の境界判定(40 歳/65 歳到達月)が法定どおりか
 
 を検証する。料率改定や数式変更のリグレッションテストとして使う想定。
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import sys
 from datetime import date, timedelta
-from math import floor
 from pathlib import Path
 
 # build_payroll.py から RATE_HISTORY を共有(単一の真実)
@@ -40,42 +39,57 @@ def lookup_rates(target: date) -> tuple[float, float, float, float, float]:
     return kenpo, kaigo, kosei, kosodate, shien
 
 
-def employee_share(total: float) -> int:
-    """50 銭以下切捨て・50 銭超切上げ.
+def employee_share_sen(total_sen: int) -> int:
+    """折半額の 50 銭超切上げ・50 銭以下切捨て(銭単位整数で計算).
 
-    `INT(x/2) + IF(MOD(x,2)>1, 1, 0)` の Python 実装。
+    web 版 splitHalfEmployee と bit-perfect に一致する:
+        floor(total_sen / 200) + (1 if total_sen % 200 > 100 else 0)
+    50 銭ちょうど(total_sen % 200 == 100)は切捨て側に含まれる。
     """
-    return int(total // 2) + (1 if (total % 2) > 1 else 0)
+    return total_sen // 200 + (1 if total_sen % 200 > 100 else 0)
 
 
 def calc_month(year: int, month: int, kaigo: bool, std: int = 88000, salary: int = 83000) -> dict:
-    """1 ヶ月分の社会保険料を計算."""
+    """1 ヶ月分の社会保険料を告知書(保険者)単位の合算丸めで計算.
+
+    納入告知額は「種別ごとに切捨て」ではなく「告知書(保険者)単位で合算してから
+    1 円未満切捨て」(協会けんぽ料額表の脚注)。協会けんぽ告知に健保(介護込み)と
+    支援金が同居するため、両者の銭端数が合算されてから切り捨てられる。
+    """
     d = date(year, month, 1)
     kenpo, kaigo_rate, kosei, kosodate, shien = lookup_rates(d)
     applied = kenpo + (kaigo_rate if kaigo else 0)
 
-    M = std * applied              # 健保(全額)
-    N = std * kosei                # 厚年(全額)
-    O = floor(std * kosodate)      # 拠出金(全額・整数)
-    P = std * shien                # 支援金(全額)
+    # 各保険料の全額(銭単位整数)。float 料率由来の端数を round で除去する。
+    kenpo_sen = round(std * applied * 100)       # 健保(介護込み)
+    kosei_sen = round(std * kosei * 100)         # 厚年
+    kosodate_sen = round(std * kosodate * 100)   # 子ども・子育て拠出金(事業主全額)
+    shien_sen = round(std * shien * 100)         # 子ども・子育て支援金
 
-    Q = employee_share(M)          # 健保社員
-    R = employee_share(N)          # 厚年社員
-    S = employee_share(P)          # 支援金社員
+    # 社員負担は折半額の欄ごとに 50 銭超切上げ(拠出金は社員負担なし)
+    kenpo_emp = employee_share_sen(kenpo_sen)
+    kosei_emp = employee_share_sen(kosei_sen)
+    shien_emp = employee_share_sen(shien_sen)
 
-    T = floor(M) - Q               # 健保事業主(残額方式)
-    U = floor(N) - R               # 厚年事業主
-    V = O                          # 拠出金事業主(全額)
-    W = floor(P) - S               # 支援金事業主
+    # 納入告知額 = 告知書(保険者)単位で合算してから 1 円未満切捨て
+    kyokai_notified = (kenpo_sen + shien_sen) // 100      # 協会けんぽ(健保+介護+支援金)
+    nenkin_notified = (kosei_sen + kosodate_sen) // 100   # 年金機構(厚年+拠出金)
 
-    X = Q + R + S                  # 社員天引き合計
-    Y = T + U + V + W              # 事業主負担合計
-    Z = X + Y                      # 法定福利費(納付額)
+    # 事業主負担はグループごとの残額方式(告知額 − 社員負担)
+    kyokai_emp = kenpo_emp + shien_emp
+    nenkin_emp = kosei_emp
+    kyokai_employer = kyokai_notified - kyokai_emp
+    nenkin_employer = nenkin_notified - nenkin_emp
+
+    X = kyokai_emp + nenkin_emp            # 社員天引き合計
+    Y = kyokai_employer + nenkin_employer  # 事業主負担合計
+    Z = kyokai_notified + nenkin_notified  # 法定福利費(納付額 = 通知額)
 
     return {
-        "全額": {"健保": M, "厚年": N, "拠出金": O, "支援金": P},
-        "社員": {"健保": Q, "厚年": R, "支援金": S},
-        "事業主": {"健保": T, "厚年": U, "拠出金": V, "支援金": W},
+        "全額_sen": {"健保": kenpo_sen, "厚年": kosei_sen, "拠出金": kosodate_sen, "支援金": shien_sen},
+        "告知額": {"協会けんぽ": kyokai_notified, "年金機構": nenkin_notified},
+        "社員": {"協会けんぽ": kyokai_emp, "厚年": kosei_emp},
+        "事業主": {"協会けんぽ": kyokai_employer, "年金機構": nenkin_employer},
         "X": X, "Y": Y, "Z": Z,
         "差引支給額": salary - X,
     }
@@ -111,8 +125,8 @@ def test_known_scenarios() -> int:
         # (year, month, kaigo, std, expected_Z, 備考)
         (2026, 4, True,  88000, 26513, "介護込み・支援金前(通知額と一致)"),
         (2026, 4, False, 88000, 25088, "介護なし・支援金前"),
-        (2026, 5, True,  88000, 26715, "介護込み・支援金開始"),
-        (2026, 5, False, 88000, 25290, "介護なし・支援金開始"),
+        (2026, 5, True,  88000, 26716, "介護込み・支援金開始(協会けんぽ群=健保+支援金 合算丸め)"),
+        (2026, 5, False, 88000, 25290, "介護なし・支援金開始(健保に銭端数なし→差なし)"),
     ]
     fails = 0
     for year, month, kaigo, std, expected, note in cases:
@@ -125,21 +139,39 @@ def test_known_scenarios() -> int:
     return fails
 
 
-def test_structural_integrity() -> int:
-    """全期間 × 介護 ON/OFF で X+Y == ROUNDDOWN(各全額) の合計 が成立するか."""
+def test_grouping_invariant() -> int:
+    """全期間 × 介護 ON/OFF で告知書単位の合算丸めが成立するか.
+
+    (1) 納付額 Z が告知書(保険者)単位の合算丸め(協会けんぽ・年金機構)と一致する。
+    (2) 種別ごと切捨て(Σ⌊T_k⌋)との差が、各告知書内の銭端数和が 100 銭以上になる
+        グループ数に一致する(その分だけ種別丸めは納付額を過小評価する)。
+    """
     fails = 0
     checked = 0
+    bumped = 0
     for kaigo in (True, False):
         for y, m in month_iter(START_YEAR_MONTH, END_YEAR_MONTH):
             r = calc_month(y, m, kaigo)
-            t = r["全額"]
-            expected = floor(t["健保"]) + floor(t["厚年"]) + t["拠出金"] + floor(t["支援金"])
+            s = r["全額_sen"]
+            grouped = (s["健保"] + s["支援金"]) // 100 + (s["厚年"] + s["拠出金"]) // 100
+            per_type = sum(v // 100 for v in s.values())
+            kyokai_frac = s["健保"] % 100 + s["支援金"] % 100
+            nenkin_frac = s["厚年"] % 100 + s["拠出金"] % 100
+            expected_bump = (1 if kyokai_frac >= 100 else 0) + (1 if nenkin_frac >= 100 else 0)
             checked += 1
-            if r["Z"] != expected:
+            if r["Z"] != grouped:
                 fails += 1
-                print(f"  [NG] {y}/{m:02} 介護={kaigo}: Z={r['Z']} expected={expected}")
+                print(f"  [NG] {y}/{m:02} 介護={kaigo}: Z={r['Z']} != 合算丸め {grouped}")
+            if grouped - per_type != expected_bump:
+                fails += 1
+                print(
+                    f"  [NG] {y}/{m:02} 介護={kaigo}: 種別丸めとの差={grouped - per_type} "
+                    f"期待={expected_bump} (協会端数和={kyokai_frac}銭, 年金端数和={nenkin_frac}銭)"
+                )
+            if expected_bump:
+                bumped += 1
     marker = "OK" if fails == 0 else "NG"
-    print(f"  [{marker}] {checked}件中 {fails}件 不整合(折半額×2 と納付額のズレ)")
+    print(f"  [{marker}] {checked}件検証 / うち {bumped}件で種別丸めから+1円(告知書内の銭端数和≥100銭)")
     return fails
 
 
@@ -173,8 +205,8 @@ def main() -> int:
     print("\n[1] 既知シナリオ検証")
     f1 = test_known_scenarios()
 
-    print("\n[2] 構造的整合性(折半額×2 と納付額のズレ無し)")
-    f2 = test_structural_integrity()
+    print("\n[2] 告知書単位の合算丸め(種別ごと切捨てとの差を検証)")
+    f2 = test_grouping_invariant()
 
     print("\n[3] 介護該当境界判定(生年月日 1986/4/15)")
     f3 = test_kaigo_boundaries()

@@ -52,20 +52,16 @@ describe('calculateMonth — 2026/04 (kaigo applicable, no shien yet)', () => {
 		expect(r.appliedKenpoRate).toBe(9850 + 1620);
 	});
 
-	it('kenpoTotal = floor(88000 * 11470 / 1000 / 100) = 10093 (after ROUNDDOWN)', () => {
-		// ※ kenpoTotal は MonthResult では「全額(整数円・ROUNDDOWN 後)」として保持
+	it('協会けんぽ群(支援金前)は健保のみ・全額 10093', () => {
 		// 全額_sen = 88000 * 11470 / 1000 = 1,009,360 → 10093.60 yen → ROUNDDOWN = 10093
-		expect(r.kenpoTotal).toBe(10093);
+		// 支援金 0 のため協会けんぽ群 = 健保単独
+		expect(r.kyokaiTotal).toBe(10093);
 	});
 
-	it('kenpoEmployee + kenpoEmployer = kenpoTotal (1円ズレ問題が起きない)', () => {
-		expect(r.kenpoEmployee + r.kenpoEmployer).toBe(r.kenpoTotal);
-	});
-
-	it('kenpoEmployee = 5047 (kaigo 込み 11.47% の半額・50銭超切上げ)', () => {
-		// 全額 = 88000 × 11.47% = 10093.6, 半額 = 5046.8, 60銭は50銭超 → 切上げ → 5047
-		expect(r.kenpoEmployee).toBe(5047);
-		expect(r.kenpoEmployer).toBe(10093 - 5047);
+	it('協会けんぽ社員 = 5047 (11.47% 半額 5046.8 → 50銭超切上げ)、事業主 = 残額 5046', () => {
+		expect(r.kyokaiEmployee).toBe(5047);
+		expect(r.kyokaiEmployer).toBe(10093 - 5047);
+		expect(r.kyokaiEmployee + r.kyokaiEmployer).toBe(r.kyokaiTotal);
 	});
 
 	it('koseiTotal = ROUNDDOWN(88000 * 18.30%) = 16104', () => {
@@ -82,18 +78,11 @@ describe('calculateMonth — 2026/04 (kaigo applicable, no shien yet)', () => {
 		expect(r.kosodateTotal).toBe(316);
 	});
 
-	it('shien = 0 (2026/04 月分は支援金開始前)', () => {
-		expect(r.shienTotal).toBe(0);
-		expect(r.shienEmployee).toBe(0);
-		expect(r.shienEmployer).toBe(0);
-	});
-
-	it('集計値が一致する', () => {
-		expect(r.employeeDeductionTotal).toBe(r.kenpoEmployee + r.koseiEmployee + r.shienEmployee);
-		expect(r.employerBurdenTotal).toBe(
-			r.kenpoEmployer + r.koseiEmployer + r.kosodateEmployer + r.shienEmployer
-		);
+	it('集計値が一致する (支援金前は納付額 26513)', () => {
+		expect(r.employeeDeductionTotal).toBe(r.kyokaiEmployee + r.koseiEmployee);
+		expect(r.employerBurdenTotal).toBe(r.kyokaiEmployer + r.koseiEmployer + r.kosodateEmployer);
 		expect(r.payableTotal).toBe(r.employeeDeductionTotal + r.employerBurdenTotal);
+		expect(r.payableTotal).toBe(26513);
 		expect(r.netSalary).toBe(83000 - r.employeeDeductionTotal);
 	});
 });
@@ -114,19 +103,54 @@ describe('calculateMonth — birthDate=null (kaigo は false)', () => {
 	});
 });
 
-describe('calculateMonth — 2026/05 (支援金開始, kaigo 該当)', () => {
-	it('shien は労使折半', () => {
-		const r = calculateMonth({
-			year: 2026,
-			month: 5,
-			stdRemuneration: 88000,
-			grossSalary: 83000,
-			birthDate: '1985-06-15',
-			rates: rate2026May
-		});
-		// shienTotal = ROUNDDOWN(88000 * 0.23%) = ROUNDDOWN(202.4) = 202
-		expect(r.shienTotal).toBe(202);
-		expect(r.shienEmployee + r.shienEmployer).toBe(r.shienTotal);
+describe('calculateMonth — 2026/05 (支援金開始, kaigo 該当): 告知書単位の合算丸め', () => {
+	// 案件: 納付額と通知額の1円ずれ。協会けんぽ告知(健保+介護+支援金)は
+	// 「種別ごとに切捨て」ではなく「合算してから1円未満切捨て」(料額表の脚注)。
+	// 健保 10093.6 + 支援金 202.4 = 10296.0 → floor 10296 (種別ごとなら 10093+202=10295 で1円不足)。
+	const r = calculateMonth({
+		year: 2026,
+		month: 5,
+		stdRemuneration: 88000,
+		grossSalary: 83000,
+		birthDate: '1985-06-15',
+		rates: rate2026May
+	});
+
+	it('協会けんぽ群(健保+支援金)は合算後切捨てで全額 10296', () => {
+		// floor((1009360 + 20240) / 100) = floor(10296.00) = 10296
+		expect(r.kyokaiTotal).toBe(10296);
+	});
+
+	it('協会けんぽ社員 = 健保5047 + 支援金101 = 5148 (各 50銭rule 後の和)', () => {
+		expect(r.kyokaiEmployee).toBe(5148);
+	});
+
+	it('協会けんぽ事業主 = 残額 10296 - 5148 = 5148 (種別ごと 5046+101=5147 より +1)', () => {
+		expect(r.kyokaiEmployer).toBe(5148);
+		expect(r.kyokaiEmployee + r.kyokaiEmployer).toBe(r.kyokaiTotal);
+	});
+
+	it('厚年・拠出金は据え置き(全額 16104 / 316、厚年は端数なしで合算と一致)', () => {
+		expect(r.koseiTotal).toBe(16104);
+		expect(r.koseiEmployee).toBe(8052);
+		expect(r.koseiEmployer).toBe(8052);
+		expect(r.kosodateTotal).toBe(316);
+		expect(r.kosodateEmployer).toBe(316);
+	});
+
+	it('社員天引き合計 13200・差引支給額 69800 は不変', () => {
+		expect(r.employeeDeductionTotal).toBe(13200);
+		expect(r.netSalary).toBe(83000 - 13200);
+	});
+
+	it('事業主負担 13516・納付額 26716 で通知額と一致 (1円ずれ解消)', () => {
+		expect(r.employerBurdenTotal).toBe(13516);
+		expect(r.payableTotal).toBe(26716);
+	});
+
+	it('納付額 = 各告知書の全額の和 = 社員 + 事業主', () => {
+		expect(r.payableTotal).toBe(r.kyokaiTotal + r.koseiTotal + r.kosodateTotal);
+		expect(r.payableTotal).toBe(r.employeeDeductionTotal + r.employerBurdenTotal);
 	});
 });
 
@@ -146,14 +170,16 @@ describe('calculateRange', () => {
 		expect(results).toHaveLength(3);
 	});
 
-	it('2026-04 行は shien=0、2026-05 行は shien>0', () => {
+	it('2026-05 で支援金が協会けんぽ告知に加算され納付額が増える', () => {
 		const results = calculateRange('2026-03', '2026-05', {
 			birthDate: '1985-06-15',
 			remunerationHistory,
 			rateHistory: allRates
 		});
-		expect(results[1].shienTotal).toBe(0); // 2026-04
-		expect(results[2].shienTotal).toBeGreaterThan(0); // 2026-05
+		// results[1]=2026-04(支援金前), results[2]=2026-05(支援金開始)
+		expect(results[1].payableTotal).toBe(26513);
+		expect(results[2].kyokaiTotal).toBeGreaterThan(results[1].kyokaiTotal); // 10296 > 10093
+		expect(results[2].payableTotal).toBe(26716);
 	});
 
 	it('start > end のとき空配列', () => {

@@ -39,17 +39,19 @@ export interface MonthResult {
 	isKaigoApplicable: boolean;
 	/** 適用済み健保料率(1/100,000 単位整数) = kenpoBase + (isKaigoApplicable ? kaigo : 0) */
 	appliedKenpoRate: number;
-	kenpoTotal: number;
+	// 協会けんぽ告知単位(健康保険料 + 介護保険料 + 子ども・子育て支援金)。
+	// 納入告知額は「種別ごとに切捨て」ではなく「合算してから 1 円未満切捨て」(料額表の脚注)。
+	// 健保と支援金の銭端数が告知書内で合算されるため、種別ごとに丸めると 1 円不足する。
+	kyokaiTotal: number;
+	kyokaiEmployee: number;
+	kyokaiEmployer: number;
+	// 年金機構告知単位(厚生年金 + 子ども・子育て拠出金)。
+	// 標準報酬月額は 1,000 円単位のため厚年全額は常に整数円となり、合算丸めと種別丸めは一致する。
 	koseiTotal: number;
-	kosodateTotal: number;
-	shienTotal: number;
-	kenpoEmployee: number;
 	koseiEmployee: number;
-	shienEmployee: number;
-	kenpoEmployer: number;
 	koseiEmployer: number;
+	kosodateTotal: number;
 	kosodateEmployer: number;
-	shienEmployer: number;
 	employeeDeductionTotal: number;
 	employerBurdenTotal: number;
 	payableTotal: number;
